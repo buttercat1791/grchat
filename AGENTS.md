@@ -19,6 +19,7 @@ grchat bundles two components:
 - The application server is built atop [Deno](https://docs.deno.com/runtime/).
 - The UI is written in the [Fresh](https://fresh.deno.dev/docs/introduction) framework.
 - Styling is accomplished via TailwindCSS with [DaisyUI](https://daisyui.com/docs/intro/).
+- The Deno server uses [Valkey GLIDE](https://valkey.io/valkey-glide/) as its Valkey client library.
 - Docker containers provide portability:
   - The Valkey database receives a dedicated Docker container.
   - The Deno server runs in a second Docker container to serve a relay WebSocket API and the Fresh UI.
