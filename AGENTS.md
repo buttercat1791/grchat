@@ -65,3 +65,4 @@ The repository extends the standard Fresh layout described on its [getting start
 - **Architecture documentation is privileged** and should _never_ be modified by an AI.
 - Before writing any code, _always_ write an implementation plan using Markdown formatting and place it in the [plans/](./plans) directory/
 - If there is any ambiguity in requirements or implementation plan details, stop and ask the developer for clarification.
+- Before interacting with code written in a language other than TypeScript or JavaScript, consult the project's [FFI](./architecture/FFI.md) documentation.
