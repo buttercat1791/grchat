@@ -1,10 +1,10 @@
 # grchat
 
-grchat is a full-stack application for threaded chats built around Nostr identities and events.
+Grchat is a full-stack application for threaded chats built around Nostr identities and events.
 
 ## Overview
 
-grchat bundles two components:
+Grchat bundles two components:
 
 - A Nostr relay that exclusively implements [NIP-7D](https://github.com/nostr-protocol/nips/blob/master/7D.md).
 - A Nostr client for threaded discussions that exclusively works with the bundled relay.
@@ -35,6 +35,7 @@ The repository extends the standard Fresh layout described on its [getting start
 - Static assets are found under [static/](./static).
 - Docker containers for the application are defined in [containers/](./containers).
 - Architecture documentation is provided in [architecture/](./architecture).
+- Service layer code is defined in [services/](./services).
 
 ## Code Style
 
@@ -57,3 +58,10 @@ The repository extends the standard Fresh layout described on its [getting start
 - Code organization:
   - Prefer shorter, single-purpose functions.
   - Prefer pure functions with no side effects.
+
+## Development Guidelines
+
+- Always consult the [architecture documentation](./architecture) before writing code to identify project requirements.
+- **Architecture documentation is privileged** and should _never_ be modified by an AI.
+- Before writing any code, _always_ write an implementation plan using Markdown formatting and place it in the [plans/](./plans) directory/
+- If there is any ambiguity in requirements or implementation plan details, stop and ask the developer for clarification.
