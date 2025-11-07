@@ -61,8 +61,22 @@ The repository extends the standard Fresh layout described on its [getting start
 
 ## Development Guidelines
 
+**Prime Directive:** _Always_ stop and ask for clarification if there is ambiguity in requirements or in implementation details.
+
+### Special AI Comment Guidelines
+
+Use the `AI-` comment format to communicate and clarify the intent of the code between developers and AI agents.
+
+- Before editing code, grep the area of focus for comments beginning with `AI-`, and read them carefully to gather context.
+- Developers and AI agents may provide context or clarify intent by writing comments prefixed with `AI-NOTE:`.
+- Developers and AI agents may outline tasks for an AI agent to do at some point in the future by writing comments prefixed with `AI-TODO:`.
+  - When encountering an `AI-TODO:` comment, consider whether the TODO can reasonably be completed as part of the current task. If it can, complete the TODO.
+- AI agents may ask clarifying questions or document uncertainty by writing comments prefixed with `AI-QUESTION:`.
+  - When encountering `AI-QUESTION:` comments relevant to the current task, stop and ask the developer for clarification to resolve any ambiguity posed by the questions.
+
+### General Development Guidelines
+
 - Always consult the [architecture documentation](./architecture) before writing code to identify project requirements.
 - **Architecture documentation is privileged** and should _never_ be modified by an AI.
 - Before writing any code, _always_ write an implementation plan using Markdown formatting and place it in the [plans/](./plans) directory/
-- If there is any ambiguity in requirements or implementation plan details, stop and ask the developer for clarification.
 - Before interacting with code written in a language other than TypeScript or JavaScript, consult the project's [FFI](./architecture/FFI.md) documentation.
