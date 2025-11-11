@@ -15,11 +15,9 @@ RUN wget https://www.vaughnnugent.com/public/resources/software/builds/noscrypt/
     task && \
     task install
 
-# --- Deno Runtime Stage ---
+# --- Deno Test Stage ---
 FROM denoland/deno:alpine-2.5.5
 WORKDIR /app
-EXPOSE 1993
-USER deno
 
 # Copy noscrypt library binaries and headers from noscrypt build stage
 COPY --from=noscrypt /usr/local/lib/libnoscrypt.so /usr/local/lib/libnoscrypt.so
@@ -27,8 +25,11 @@ COPY --from=noscrypt /usr/local/lib/libnoscrypt_static.a /usr/local/lib/libnoscr
 COPY --from=noscrypt /usr/local/include/noscrypt/noscrypt.h /usr/local/include/noscrypt/noscrypt.h
 COPY --from=noscrypt /usr/local/include/noscrypt/platform.h /usr/local/include/noscrypt/platform.h
 
+# Set up full project similar to the project's deployable `deno.Dockerfile`.
 COPY . .
 RUN deno install
 RUN deno cache main.ts
 
-CMD ["run", "--allow-net", "--allow-ffi", "main.ts"]
+# Run all tests.
+# Runs as root user -- DO NOT DEPLOY THIS CONTAINER TO PRODUCTION
+CMD ["test", "--allow-ffi"]

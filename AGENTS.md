@@ -80,3 +80,4 @@ Use the `AI-` comment format to communicate and clarify the intent of the code b
 - **Architecture documentation is privileged** and should _never_ be modified by an AI.
 - Before writing any code, _always_ write an implementation plan using Markdown formatting and place it in the [plans/](./plans) directory/
 - Before interacting with code written in a language other than TypeScript or JavaScript, consult the project's [FFI](./architecture/FFI.md) documentation.
+- When it is necessary to write a summary of development work, or to write notes on a particular implementation, place these notes and summaries in Markdown files in an appropriate subdirectory under [notes/](./notes/).
