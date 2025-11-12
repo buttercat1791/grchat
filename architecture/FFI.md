@@ -9,7 +9,7 @@ Deno provides an [FFI implementation](https://docs.deno.com/runtime/fundamentals
 ## FFI Guidelines
 
 - Every distinct FFI should be given a TypeScript service wrapper defined in the [services/](../services) directory.
-- Avoid calling unwrapper FFIs. Instead call the interface's TypeScript wrapper service.
+- Avoid calling unwrapped FFIs. Instead call the interface's TypeScript wrapper service.
 
 ## Current FFI Usage
 
