@@ -21,13 +21,13 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 #### 1.1 Database Layer
 
-- [ ] **Valkey Docker Container Setup**
+- [x] **Valkey Docker Container Setup**
   - Create Dockerfile for Valkey container
   - Configure Valkey for optimal chat message storage
   - Set up volume mounts for data persistence
   - Define Docker networking between Valkey and Deno containers
 
-- [ ] **Valkey Client Service** (`services/valkey-client.ts`)
+- [x] **Valkey Client Service** (`services/valkey-client.ts`)
   - Initialize Valkey GLIDE client connection
   - Implement connection pooling and error handling
   - Create wrapper functions for core Valkey operations:
@@ -40,7 +40,7 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 #### 1.2 Cryptography FFI Layer
 
-- [ ] **Noscrypt FFI Wrapper** (`services/noscrypt.ts`)
+- [x] **Noscrypt FFI Wrapper** (`services/noscrypt.ts`)
   - Define FFI bindings for noscrypt library functions:
     - Event signing
     - Signature verification
