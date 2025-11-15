@@ -13,4 +13,4 @@ Deno provides an [FFI implementation](https://docs.deno.com/runtime/fundamentals
 
 ## Current FFI Usage
 
-- Nostr cryptography services are provided via the [noscrypt](https://www.vaughnnugent.com/resources/software/modules/noscrypt) library. Noscrypt is written in C and is invoked from grchat via FFI.
+- Nostr cryptography services are provided via the [noscrypt](https://www.vaughnnugent.com/resources/software/modules/noscrypt) library. Noscrypt is written in C and is invoked from grchat via FFI. This project defines a wrapper class for the noscrypt library in [noscrypt-ffi.ts](../libraries/noscrypt/noscrypt-ffi.ts).
