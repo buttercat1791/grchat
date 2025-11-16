@@ -8,6 +8,10 @@
  */
 import z from "zod";
 
+export const NID = z.hex().length(64);
+export const NEventID = z.hash("sha256").length(64);
+export const NSig = z.hex().length(128);
+
 /**
  * Unsigned Nostr event (before signing).
  *
@@ -16,7 +20,7 @@ import z from "zod";
  */
 export const NostrEventBase = z.object({
   /** Public key of the event creator (32-byte lowercase hex string) */
-  pubkey: z.hex().length(64),
+  pubkey: NID,
 
   /** Unix timestamp in seconds */
   created_at: z.int().positive(),
@@ -33,18 +37,18 @@ export const NostrEventBase = z.object({
 
 export const NostrEvent = NostrEventBase.safeExtend({
   /** SHA-256 hash of the serialized event (32-byte lowercase hex string) */
-  id: z.hash("sha256").length(64),
+  id: NEventID,
 
   /** Schnorr signature of the event ID (64-byte lowercase hex string) */
-  sig: z.hex().length(128),
+  sig: NSig,
 });
 
 /**
  * Serialized event data for over which the event ID and signature are generated.
  */
-export const signatureData = z.tuple([
+export const SignatureData = z.tuple([
   z.literal(0), // integer 0 prefix
-  z.hex().length(64), // pubkey
+  NID, // pubkey
   z.int().positive(), // created_at
   z.int().positive().lt(40000), // kind
   z.array(z.array(z.string())), // tags

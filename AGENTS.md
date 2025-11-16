@@ -81,4 +81,12 @@ Use the `AI-` comment format to communicate and clarify the intent of the code b
 - Before writing any code, _always_ write an implementation plan using Markdown formatting and place it in the [plans/](./plans) directory/
 - Before interacting with code written in a language other than TypeScript or JavaScript, consult the project's [FFI](./architecture/FFI.md) documentation.
 - When it is necessary to write a summary of development work, or to write notes on a particular implementation, place these notes and summaries in Markdown files in an appropriate subdirectory under [notes/](./notes/).
+
+### Unit Testing Guidelines
+
 - **Always run tests in Docker.** Unit tests include FFI wrapper classes, which depend on specific installed library configuration. To use a pre-prepared, controlled test environment, build and run [deno-test.Dockerfile](./containers/deno-test.Dockerfile).
+- Use _Behavior-Driven Development (BDD)_ methodologies.
+  - **Test suites should describe application behavior**, not implementation details.
+  - **Write and run tests against interfaces**, not internal implementations.
+  - **Only mock external dependencies**; instantiate and run all components of the system under test.
+- Format tests using Deno's [BDD facilities](https://docs.deno.com/runtime/fundamentals/testing/#behavior-driven-development).

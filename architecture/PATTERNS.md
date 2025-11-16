@@ -10,6 +10,7 @@ Grchat's domain logic uses the _Active Record_ pattern.
 - The application domain can be modeled as JSON objects that comply with the [NIP-7D](https://github.com/nostr-protocol/nips/blob/master/7D.md) standard.
 - The entire application stack uses Nostr events consistently throughout, from the presentation layer through to the database.
 - There is no need for _Data Transfer Objects_ and _Data Mappers_.
+- Nostr event schemas are defined and validated via [Zod 4](https://zod.dev/).
 
 ## Service Layer
 
@@ -73,3 +74,13 @@ Input validation occurs in the service layer:
 - Validation rules enforce Nostr event structure compliance (NIP-01, NIP-7D)
 - The service layer is the single source of truth for validation logic
 - Presentation layer may perform client-side validation for UX, but service layer validation is authoritative
+
+## Schema Validation
+
+[Zod 4](https://zod.dev/) is the preferred tool for defining and validating data schemas. Zod schemas may be used to define and validate:
+
+- Database active records
+- DTOs
+- Interfaces between components
+
+Zod schemas and codecs are defined in [schemas/](./schemas/).
