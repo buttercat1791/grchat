@@ -49,16 +49,16 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
   - Implement error handling for FFI calls
   - Add input validation at FFI boundary
 
-- [ ] **Cryptography Service** (`services/crypto.ts`)
+- [x] **Cryptography Service** (`services/crypto.ts`)
   - Wrap noscrypt FFI with business logic
   - Implement Nostr event ID generation (SHA-256 serialization)
   - Implement event signature verification
-  - Add cryptographic validation helpers
+  - Implement Nostr event signing
 
 #### 1.3 Domain Models
 
-- [ ] **Nostr Event Types** (`services/nostr-events.ts`)
-  - Define TypeScript interfaces for NIP-01 events
+- [x] **Nostr Event Types** (`services/nostr-events.ts`)
+  - Define Zod schemas for NIP-01 events
   - Define interfaces for NIP-7D chat messages (kind 11)
   - Define interfaces for NIP-7D threaded responses (kind 1111)
   - Implement event serialization/deserialization
