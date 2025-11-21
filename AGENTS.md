@@ -84,6 +84,7 @@ Use the `AI-` comment format to communicate and clarify the intent of the code b
 
 ### Unit Testing Guidelines
 
+- **Never write tests without developer approval.** Excessive tests are just as bad as no tests at all. Get developer approval so that test coverage stays focused and incisive.
 - **Always run tests in Docker.** Unit tests include FFI wrapper classes, which depend on specific installed library configuration. To use a pre-prepared, controlled test environment, build and run [deno-test.Dockerfile](./containers/deno-test.Dockerfile).
 - Use _Behavior-Driven Development (BDD)_ methodologies.
   - **Test suites should describe application behavior**, not implementation details.
