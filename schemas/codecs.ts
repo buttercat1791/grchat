@@ -5,7 +5,8 @@
  */
 
 import z from "zod";
-import { NostrEventBase, SignatureData } from "./nostr.ts";
+import { NostrEventBase } from "./nostr.ts";
+import { SessionState } from "./session.ts";
 
 export const utf8ToBytes = z.codec(z.string(), z.instanceof(Uint8Array), {
   decode: (str) => new TextEncoder().encode(str),
@@ -22,7 +23,6 @@ export const hexToBytes = z.codec(z.hex(), z.instanceof(Uint8Array), {
   encode: (bytes) => z.util.uint8ArrayToHex(bytes),
 });
 
-// AI-TODO: Define a custom codec to serialize signature data from a Nostr event.
 export const eventToSignatureData = NostrEventBase.transform((event) => [
   0,
   event.pubkey,
@@ -31,3 +31,30 @@ export const eventToSignatureData = NostrEventBase.transform((event) => [
   event.tags,
   event.content,
 ]);
+
+export const sessionModelToCsv = z.codec(
+  SessionState,
+  z.stringFormat("semicolon-csv", /^[^;]*(;[^;]*)*$/),
+  {
+    decode: (session) =>
+      [
+        session.userPubkey,
+        session.signerPubkey,
+        session.relayUrls.join("|"),
+        session.expiresAt.toString(),
+        session.challengeState,
+        session.challengeIssuedAt?.toString() ?? "",
+      ].join(";"),
+    encode: (csv) => {
+      const parts = csv.split(";");
+      return SessionState.parse({
+        userPubkey: parts[0],
+        signerPubkey: parts[1],
+        relayUrls: parts[2].split("|"),
+        expiresAt: parseInt(parts[3]),
+        challengeState: parts[4],
+        challengeIssuedAt: parts[5] ? parseInt(parts[5]) : undefined,
+      });
+    },
+  },
+);

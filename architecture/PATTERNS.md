@@ -84,3 +84,8 @@ Input validation occurs in the service layer:
 - Interfaces between components
 
 Zod schemas and codecs are defined in [schemas/](./schemas/).
+
+## Serialization and Deserialization
+
+- Serialization and deserialization of Zod schemas should be handled via custom codecs defined in [schemas/codecs.ts](./schemas/codecs.ts).
+- Refer to Zod 4 [codecs documentation](https://zod.dev/codecs) for further information on how to define codecs.

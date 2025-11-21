@@ -22,7 +22,7 @@ Once the NIP-46 handshake is complete, the Grchat server stores a session for th
 - The user's public key
 - The remote signer application's public key
 - One or more relay URLs on which the user's remote signer application is listening
-- A Unix timestamp indicating the user's session expiration
+- An ISO 8601 datetime indicating the user's session expiration
 - NIP-42 challenge state (succeeded/failed)
 
 The server persists session state to the Valkey database as a CSV-formatted string. The time-to-live (TTL) of session state Valkey entries is 24 hours from session creation.

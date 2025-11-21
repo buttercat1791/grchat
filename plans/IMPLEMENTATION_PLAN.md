@@ -64,8 +64,8 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
   - Implement event serialization/deserialization
   - Create validation functions for event structure
 
-- [ ] **Session Model** (`services/session-model.ts`)
-  - Define session state TypeScript interface
+- [x] **Session Model** (`services/session-model.ts`)
+  - Define session state Zod schema
   - Implement CSV serialization for session state
   - Implement CSV deserialization for session state
   - Define session validation rules
