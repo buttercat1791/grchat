@@ -77,26 +77,27 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 #### 2.1 Authentication Services
 
 - [ ] **NIP-46 Remote Signing Service** (`services/nip46-auth.ts`)
-  - Implement `nostrconnect://` URL generation
-  - Implement `bunker://` URL parsing
-  - Create NIP-46 handshake initiation logic
+  - Adhere to the NIP-46 specification for remote signers
+  - Initiate handshake from grchat by providing a `nostrconnect://` URL to the caller
+  - Respond to handshake initiated by signer by accepting a `bunker://` URL from the caller
+  - Use the Nostr crypto service (`services/nostr/crypto.ts`) to generate a keypair grchat will use for its part of the handshake
   - Implement request/response handling for remote signer communication
   - Add timeout handling for handshake operations
 
 - [ ] **Session Management Service** (`services/session-manager.ts`)
-  - Implement session creation after successful NIP-46 handshake
-  - Implement session retrieval from Valkey
-  - Implement session validation (expiration check)
-  - Implement session deletion (logout, expiration)
-  - Implement multi-device session tracking
-  - Add session renewal logic
+  - Begin a session after a successful NIP-46 handshake by writing the session model to Valkey
+  - Retrieve session state from Valkey via the user's public key
+  - When a user begins a transaction, check that user's session expiration
+  - Offer to renew expired sessions
+  - Delete sessions from Valkey on logout or expiration
+  - Track sessions across client devices by user public key
 
 - [ ] **Keepalive Service** (`services/keepalive.ts`)
-  - Implement 60-second ping interval timer
-  - Implement NIP-46 ping message generation
-  - Implement pong message verification
-  - Implement session termination on keepalive failure
-  - Add graceful shutdown handling
+  - Ping connected remote signers at a 60-second interval while the session is not expired
+  - Use NIP-46 ping messages
+  - Receive and verify NIP-46 pong messages from remote signers
+  - Terminate a session and delete the state from Valkey on keepalive failure
+  - Implement the keepalive service as a long-running background process on the Deno server
 
 #### 2.2 Authorization Services
 
@@ -130,15 +131,14 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
     - Hash storage: `chat.message.<root-event-id>.thread.<response-event-id>`
     - Thread index update: `index.threads.<root-event-id>`
     - TTL: 90 days
-  - Implement transaction-like operations for atomic updates
-  - Add rollback logic on partial failures
+  - Handle update operations atomically
+  - Rollback writes on transaction failures
 
 - [ ] **Message Retrieval Service** (`services/message-retrieval.ts`)
   - Implement timeline query (sorted by recency)
   - Implement thread retrieval (all responses to a root message)
   - Implement pagination support
   - Implement efficient batch retrieval
-  - Add caching strategies for frequently accessed data
 
 - [ ] **Event Validation Service** (`services/event-validator.ts`)
   - Implement NIP-01 event structure validation
@@ -147,6 +147,8 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
   - Validate event signatures
   - Validate event IDs
   - Return descriptive validation error messages
+  - Validate all events before writing them to Valkey
+  - Assume events read from Valkey have been properly validated
 
 ### Phase 3: Nostr Relay API
 

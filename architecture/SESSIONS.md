@@ -31,6 +31,8 @@ The server persists session state to the Valkey database as a CSV-formatted stri
 
 A single user may authenticate from multiple devices simultaneously. All sessions for a given user are tracked using the same public key. From the application's perspective, multiple devices authenticated with the same public key constitute a single logical session - messages sent from any device appear under the same user identity, and session state is shared across all devices.
 
+The grchat frontend, on successful handshake completion, writes the authenticated user's public key to the client's web browser local storage. When that browser loads grchat, the client code checks local storage for a public key. If a public key is found, grchat attempts to renew or reinitialize that user's session. Only one public key can be stored on a browser at a time.
+
 ### Keepalive
 
 User sessions expire 24 hours after the initial authentication handshake. The expiration timestamp is computed on handshake completion and stored in the server session state.
