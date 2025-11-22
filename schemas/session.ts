@@ -8,7 +8,7 @@
  * @see ../architecture/SESSIONS.md
  */
 import { z } from "zod";
-import { NID } from "./nostr.ts";
+import { NID } from "./nostr-events.ts";
 
 /**
  * NIP-42 challenge state.

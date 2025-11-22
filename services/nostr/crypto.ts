@@ -8,7 +8,12 @@
  */
 
 import { Noscrypt } from "@/libraries/noscrypt/noscrypt-ffi.ts";
-import { NEventID, NID, NostrEvent, NostrEventBase } from "@/schemas/nostr.ts";
+import {
+  NEventID,
+  NID,
+  NostrEvent,
+  NostrEventBase,
+} from "@/schemas/nostr-events.ts";
 import {
   bytesToUtf8,
   eventToSignatureData,

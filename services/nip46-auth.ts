@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 import { Noscrypt } from "@/libraries/noscrypt/noscrypt-ffi.ts";
-import { NID, NostrEvent, NostrEventBase } from "@/schemas/nostr.ts";
+import { NID, NostrEvent, NostrEventBase } from "@/schemas/nostr-events.ts";
 import { RelayError, RelayPool } from "./relay-pool.ts";
 import { signEvent } from "./nostr/crypto.ts";
 

@@ -5,7 +5,7 @@
  */
 
 import z from "zod";
-import { NostrEventBase } from "./nostr.ts";
+import { NostrEventBase } from "./nostr-events.ts";
 import { SessionState } from "./session.ts";
 
 export const utf8ToBytes = z.codec(z.string(), z.instanceof(Uint8Array), {

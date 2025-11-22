@@ -1,12 +1,15 @@
 /**
  * WebSocket Connection Pool for Nostr Relays
- *
- * Manages pooled WebSocket connections to Nostr relays for efficient reuse across
- * NIP-46 remote signing operations.
  */
 
 import { z } from "zod";
-import { NostrEvent } from "@/schemas/nostr.ts";
+import { NostrEvent } from "@/schemas/nostr-events.ts";
+import {
+  ClientCloseMessage,
+  ClientEventMessage,
+  NostrFilter,
+  RelayMessage,
+} from "../schemas/nostr-messages.ts";
 
 /**
  * Error thrown when relay operations fail.
@@ -19,24 +22,6 @@ export class RelayError extends Error {
 }
 
 /**
- * NIP-01 client-to-relay message types.
- */
-type ClientMessage =
-  | ["EVENT", z.infer<typeof NostrEvent>]
-  | ["REQ", string, ...Record<string, unknown>[]]
-  | ["CLOSE", string];
-
-/**
- * NIP-01 relay-to-client message types.
- */
-type RelayMessage =
-  | ["EVENT", string, z.infer<typeof NostrEvent>]
-  | ["EOSE", string]
-  | ["OK", string, boolean, string]
-  | ["NOTICE", string]
-  | ["AUTH", string];
-
-/**
  * Subscription callback function.
  */
 type SubscriptionCallback = (event: z.infer<typeof NostrEvent>) => void;
@@ -44,7 +29,7 @@ type SubscriptionCallback = (event: z.infer<typeof NostrEvent>) => void;
 /**
  * Message handler for relay messages.
  */
-type MessageHandler = (message: RelayMessage) => void;
+type MessageHandler = (message: z.infer<typeof RelayMessage>) => void;
 
 /**
  * Connection state for a relay.
@@ -55,7 +40,6 @@ interface RelayConnection {
   state: "connecting" | "connected" | "disconnected";
   subscriptions: Map<string, SubscriptionCallback>;
   messageHandlers: Set<MessageHandler>;
-  reconnectAttempts: number;
   lastActivity: number;
 }
 
@@ -67,10 +51,6 @@ interface RelayPoolConfig {
   maxConnectionsPerRelay?: number;
   /** Connection timeout in milliseconds */
   connectionTimeout?: number;
-  /** Maximum reconnection attempts */
-  maxReconnectAttempts?: number;
-  /** Reconnection delay in milliseconds */
-  reconnectDelay?: number;
   /** Idle timeout before closing connection in milliseconds */
   idleTimeout?: number;
 }
@@ -78,21 +58,13 @@ interface RelayPoolConfig {
 const DEFAULT_CONFIG: Required<RelayPoolConfig> = {
   maxConnectionsPerRelay: 3,
   connectionTimeout: 10000,
-  maxReconnectAttempts: 5,
-  reconnectDelay: 1000,
   idleTimeout: 300000, // 5 minutes
 };
 
 /**
  * WebSocket connection pool for Nostr relays.
  *
- * Manages multiple WebSocket connections to relay servers, handling:
- * - Connection pooling and reuse
- * - Automatic reconnection on failure
- * - Subscription management
- * - Message routing
- *
- * @example
+ * Example usage:
  * ```ts
  * const pool = new RelayPool();
  *
@@ -114,12 +86,12 @@ const DEFAULT_CONFIG: Required<RelayPoolConfig> = {
  * ```
  */
 export class RelayPool implements Disposable {
-  private connections: Map<string, RelayConnection> = new Map();
-  private config: Required<RelayPoolConfig>;
-  private isClosed = false;
+  #connections: Map<string, RelayConnection> = new Map();
+  #config: Required<RelayPoolConfig>;
+  #isClosed = false;
 
   constructor(config?: RelayPoolConfig) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.#config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
@@ -131,26 +103,26 @@ export class RelayPool implements Disposable {
    * @throws {RelayError} If connection fails or times out
    */
   async connect(url: string): Promise<void> {
-    this.assertNotClosed();
+    this.#assertNotClosed();
 
-    const normalizedUrl = this.normalizeUrl(url);
+    const normalizedUrl = this.#normalizeUrl(url);
 
     // Return if already connected
-    const existing = this.connections.get(normalizedUrl);
+    const existing = this.#connections.get(normalizedUrl);
     if (existing && existing.state === "connected") {
       existing.lastActivity = Date.now();
       return;
     }
 
     // Create new connection
-    const connection = await this.createConnection(normalizedUrl);
-    this.connections.set(normalizedUrl, connection);
+    const connection = await this.#createConnection(normalizedUrl);
+    this.#connections.set(normalizedUrl, connection);
   }
 
   /**
    * Creates a new WebSocket connection to a relay.
    */
-  private createConnection(url: string): Promise<RelayConnection> {
+  #createConnection(url: string): Promise<RelayConnection> {
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(url);
       const connection: RelayConnection = {
@@ -159,19 +131,17 @@ export class RelayPool implements Disposable {
         state: "connecting",
         subscriptions: new Map(),
         messageHandlers: new Set(),
-        reconnectAttempts: 0,
         lastActivity: Date.now(),
       };
 
       const timeout = setTimeout(() => {
         socket.close();
         reject(new RelayError(`Connection to ${url} timed out`));
-      }, this.config.connectionTimeout);
+      }, this.#config.connectionTimeout);
 
       socket.onopen = () => {
         clearTimeout(timeout);
         connection.state = "connected";
-        connection.reconnectAttempts = 0;
         resolve(connection);
       };
 
@@ -183,12 +153,12 @@ export class RelayPool implements Disposable {
 
       socket.onclose = () => {
         connection.state = "disconnected";
-        this.handleDisconnect(connection);
+        // AI-NOTE: Currently, we will not attempt to reconnect.
       };
 
       socket.onmessage = (event) => {
         connection.lastActivity = Date.now();
-        this.handleMessage(connection, event.data);
+        this.#handleMessage(connection, event.data);
       };
     });
   }
@@ -196,9 +166,20 @@ export class RelayPool implements Disposable {
   /**
    * Handles incoming messages from a relay.
    */
-  private handleMessage(connection: RelayConnection, data: string): void {
+  #handleMessage(connection: RelayConnection, data: string): void {
     try {
-      const message = JSON.parse(data) as RelayMessage;
+      const parsed = JSON.parse(data);
+      const result = RelayMessage.safeParse(parsed);
+
+      if (!result.success) {
+        console.warn(
+          `[relay-pool] Invalid message from ${connection.url}:`,
+          result.error.message,
+        );
+        return;
+      }
+
+      const message = result.data;
 
       // Route to subscription callbacks for EVENT messages
       if (message[0] === "EVENT") {
@@ -223,37 +204,6 @@ export class RelayPool implements Disposable {
   }
 
   /**
-   * Handles disconnection from a relay.
-   */
-  private handleDisconnect(connection: RelayConnection): void {
-    if (this.isClosed) return;
-
-    // Attempt reconnection if we haven't exceeded max attempts
-    if (connection.reconnectAttempts < this.config.maxReconnectAttempts) {
-      connection.reconnectAttempts++;
-      const delay = this.config.reconnectDelay * connection.reconnectAttempts;
-
-      setTimeout(async () => {
-        try {
-          const newConnection = await this.createConnection(connection.url);
-          // Restore subscriptions
-          newConnection.subscriptions = connection.subscriptions;
-          newConnection.messageHandlers = connection.messageHandlers;
-          this.connections.set(connection.url, newConnection);
-
-          // Resubscribe to all active subscriptions
-          for (const subId of newConnection.subscriptions.keys()) {
-            // Note: We would need to store filter info to properly resubscribe
-            // For now, subscriptions may need to be re-established by callers
-          }
-        } catch {
-          // Will try again on next disconnect event
-        }
-      }, delay);
-    }
-  }
-
-  /**
    * Subscribes to events matching the given filters.
    *
    * @param url - The relay URL
@@ -265,15 +215,15 @@ export class RelayPool implements Disposable {
    */
   async subscribe(
     url: string,
-    filters: Record<string, unknown>[],
+    filters: z.infer<typeof NostrFilter>[],
     callback: SubscriptionCallback,
   ): Promise<string> {
-    this.assertNotClosed();
+    this.#assertNotClosed();
 
-    const normalizedUrl = this.normalizeUrl(url);
+    const normalizedUrl = this.#normalizeUrl(url);
     await this.connect(normalizedUrl);
 
-    const connection = this.connections.get(normalizedUrl);
+    const connection = this.#connections.get(normalizedUrl);
     if (!connection || connection.state !== "connected") {
       throw new RelayError(`Not connected to ${url}`);
     }
@@ -281,7 +231,7 @@ export class RelayPool implements Disposable {
     const subId = crypto.randomUUID();
     connection.subscriptions.set(subId, callback);
 
-    const message: ClientMessage = ["REQ", subId, ...filters];
+    const message = ["REQ", subId, ...filters];
     connection.socket.send(JSON.stringify(message));
 
     return subId;
@@ -294,18 +244,82 @@ export class RelayPool implements Disposable {
    * @param subId - The subscription ID to close
    */
   unsubscribe(url: string, subId: string): void {
-    this.assertNotClosed();
+    this.#assertNotClosed();
 
-    const normalizedUrl = this.normalizeUrl(url);
-    const connection = this.connections.get(normalizedUrl);
+    const normalizedUrl = this.#normalizeUrl(url);
+    const connection = this.#connections.get(normalizedUrl);
     if (!connection) return;
 
     connection.subscriptions.delete(subId);
 
     if (connection.state === "connected") {
-      const message: ClientMessage = ["CLOSE", subId];
+      const message: z.infer<typeof ClientCloseMessage> = ["CLOSE", subId];
       connection.socket.send(JSON.stringify(message));
     }
+  }
+
+  /**
+   * Fetches a single event matching the given filters.
+   *
+   * If no events match before EOSE (End of Stored Events), returns null.
+   *
+   * @param url - The relay URL
+   * @param filters - Array of NIP-01 filters
+   * @returns The first matching event, or null if no events match
+   *
+   * @throws {RelayError} If connection fails or times out
+   */
+  async fetchEvent(
+    url: string,
+    filters: z.infer<typeof NostrFilter>[],
+  ): Promise<z.infer<typeof NostrEvent> | null> {
+    this.#assertNotClosed();
+
+    const normalizedUrl = this.#normalizeUrl(url);
+    await this.connect(normalizedUrl);
+
+    const connection = this.#connections.get(normalizedUrl);
+    if (!connection || connection.state !== "connected") {
+      throw new RelayError(`Not connected to ${url}`);
+    }
+
+    return new Promise((resolve, reject) => {
+      const subId = crypto.randomUUID();
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        connection.subscriptions.delete(subId);
+        connection.messageHandlers.delete(handler);
+        if (connection.state === "connected") {
+          const closeMessage: z.infer<typeof ClientCloseMessage> = [
+            "CLOSE",
+            subId,
+          ];
+          connection.socket.send(JSON.stringify(closeMessage));
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new RelayError(`Fetch from ${url} timed out`));
+      }, this.#config.connectionTimeout);
+
+      const handler: MessageHandler = (message) => {
+        if (message[0] === "EVENT" && message[1] === subId) {
+          cleanup();
+          resolve(message[2]);
+        } else if (message[0] === "EOSE" && message[1] === subId) {
+          cleanup();
+          resolve(null);
+        }
+      };
+
+      connection.subscriptions.set(subId, () => {});
+      connection.messageHandlers.add(handler);
+
+      const reqMessage = ["REQ", subId, ...filters];
+      connection.socket.send(JSON.stringify(reqMessage));
+    });
   }
 
   /**
@@ -321,12 +335,12 @@ export class RelayPool implements Disposable {
     url: string,
     event: z.infer<typeof NostrEvent>,
   ): Promise<{ success: boolean; message: string }> {
-    this.assertNotClosed();
+    this.#assertNotClosed();
 
-    const normalizedUrl = this.normalizeUrl(url);
+    const normalizedUrl = this.#normalizeUrl(url);
     await this.connect(normalizedUrl);
 
-    const connection = this.connections.get(normalizedUrl);
+    const connection = this.#connections.get(normalizedUrl);
     if (!connection || connection.state !== "connected") {
       throw new RelayError(`Not connected to ${url}`);
     }
@@ -335,7 +349,7 @@ export class RelayPool implements Disposable {
       const timeout = setTimeout(() => {
         connection.messageHandlers.delete(handler);
         reject(new RelayError(`Publish to ${url} timed out`));
-      }, this.config.connectionTimeout);
+      }, this.#config.connectionTimeout);
 
       const handler: MessageHandler = (message) => {
         if (message[0] === "OK" && message[1] === event.id) {
@@ -350,7 +364,10 @@ export class RelayPool implements Disposable {
 
       connection.messageHandlers.add(handler);
 
-      const clientMessage: ClientMessage = ["EVENT", event];
+      const clientMessage: z.infer<typeof ClientEventMessage> = [
+        "EVENT",
+        event,
+      ];
       connection.socket.send(JSON.stringify(clientMessage));
     });
   }
@@ -362,10 +379,10 @@ export class RelayPool implements Disposable {
    * @param handler - The message handler function
    */
   addMessageHandler(url: string, handler: MessageHandler): void {
-    this.assertNotClosed();
+    this.#assertNotClosed();
 
-    const normalizedUrl = this.normalizeUrl(url);
-    const connection = this.connections.get(normalizedUrl);
+    const normalizedUrl = this.#normalizeUrl(url);
+    const connection = this.#connections.get(normalizedUrl);
     if (connection) {
       connection.messageHandlers.add(handler);
     }
@@ -378,8 +395,8 @@ export class RelayPool implements Disposable {
    * @param handler - The message handler function to remove
    */
   removeMessageHandler(url: string, handler: MessageHandler): void {
-    const normalizedUrl = this.normalizeUrl(url);
-    const connection = this.connections.get(normalizedUrl);
+    const normalizedUrl = this.#normalizeUrl(url);
+    const connection = this.#connections.get(normalizedUrl);
     if (connection) {
       connection.messageHandlers.delete(handler);
     }
@@ -391,11 +408,11 @@ export class RelayPool implements Disposable {
    * @param url - The relay URL to disconnect from
    */
   disconnect(url: string): void {
-    const normalizedUrl = this.normalizeUrl(url);
-    const connection = this.connections.get(normalizedUrl);
+    const normalizedUrl = this.#normalizeUrl(url);
+    const connection = this.#connections.get(normalizedUrl);
     if (connection) {
       connection.socket.close();
-      this.connections.delete(normalizedUrl);
+      this.#connections.delete(normalizedUrl);
     }
   }
 
@@ -408,8 +425,8 @@ export class RelayPool implements Disposable {
   getState(
     url: string,
   ): "connecting" | "connected" | "disconnected" | undefined {
-    const normalizedUrl = this.normalizeUrl(url);
-    return this.connections.get(normalizedUrl)?.state;
+    const normalizedUrl = this.#normalizeUrl(url);
+    return this.#connections.get(normalizedUrl)?.state;
   }
 
   /**
@@ -418,7 +435,7 @@ export class RelayPool implements Disposable {
    * @returns Array of connected relay URLs
    */
   getConnectedRelays(): string[] {
-    return Array.from(this.connections.entries())
+    return Array.from(this.#connections.entries())
       .filter(([_, conn]) => conn.state === "connected")
       .map(([url, _]) => url);
   }
@@ -427,21 +444,21 @@ export class RelayPool implements Disposable {
    * Closes all connections and cleans up resources.
    */
   close(): void {
-    if (this.isClosed) return;
+    if (this.#isClosed) return;
 
-    this.isClosed = true;
+    this.#isClosed = true;
 
-    for (const connection of this.connections.values()) {
+    for (const connection of this.#connections.values()) {
       connection.socket.close();
     }
 
-    this.connections.clear();
+    this.#connections.clear();
   }
 
   /**
    * Normalizes a relay URL to ensure consistent key usage.
    */
-  private normalizeUrl(url: string): string {
+  #normalizeUrl(url: string): string {
     // Remove trailing slash and normalize to wss
     let normalized = url.replace(/\/$/, "");
     if (normalized.startsWith("ws://")) {
@@ -453,8 +470,8 @@ export class RelayPool implements Disposable {
   /**
    * Ensures the pool hasn't been closed.
    */
-  private assertNotClosed(): void {
-    if (this.isClosed) {
+  #assertNotClosed(): void {
+    if (this.#isClosed) {
       throw new RelayError("RelayPool has been closed");
     }
   }
@@ -473,6 +490,6 @@ export class RelayPool implements Disposable {
  * @param config - Optional configuration options
  * @returns A new RelayPool instance
  */
-export function createRelayPool(config?: RelayPoolConfig): RelayPool {
+export function buildRelayPool(config?: RelayPoolConfig): RelayPool {
   return new RelayPool(config);
 }

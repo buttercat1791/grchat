@@ -15,16 +15,19 @@ Authentication services enable users to authenticate with grchat using NIP-46 re
 ## Dependencies and Prerequisites
 
 ### Existing Components (Phase 1)
+
 - `services/valkey-client.ts` - Valkey database client
 - `services/nostr/crypto.ts` - Nostr cryptography service (signing, verification)
 - `schemas/session.ts` - Session state Zod schema and validators
-- `schemas/nostr.ts` - Nostr event schemas
+- `schemas/nostr-events.ts` - Nostr event schemas
 - `schemas/codecs.ts` - Serialization codecs including `sessionModelToCsv`
 
 ### New Dependencies Required
 
 #### NIP-44 Encryption
+
 NIP-46 requires NIP-44 encrypted communication. The noscrypt FFI library does not currently expose NIP-44 encryption functions. Options:
+
 1. **Add NIP-44 FFI bindings** - If noscrypt supports NIP-44, add FFI wrappers
 2. **Pure TypeScript implementation** - Implement NIP-44 using Web Crypto API and `@noble/secp256k1`
 
@@ -35,19 +38,21 @@ NIP-46 requires NIP-44 encrypted communication. The noscrypt FFI library does no
 ### 1. NIP-46 Remote Signing Service (`services/nip46-auth.ts`)
 
 #### Responsibilities
+
 - Generate `nostrconnect://` URLs for client-initiated connections
 - Parse `bunker://` URLs for signer-initiated connections
 - Manage NIP-46 request/response communication over relays
 - Handle encryption/decryption of NIP-46 messages using NIP-44
 
 #### Key Types
+
 ```typescript
 interface Nip46Connection {
-  clientSecretKey: string;  // Ephemeral keypair for this connection
+  clientSecretKey: string; // Ephemeral keypair for this connection
   clientPubkey: string;
   signerPubkey: string;
   relayUrls: string[];
-  secret?: string;          // Optional handshake secret
+  secret?: string; // Optional handshake secret
 }
 
 interface Nip46Request {
@@ -64,6 +69,7 @@ interface Nip46Response {
 ```
 
 #### Functions
+
 - `generateNostrconnectUrl(relayUrls: string[], appMetadata?: AppMetadata): NostrconnectResult`
   - Generates ephemeral keypair for the connection
   - Creates `nostrconnect://` URL with client pubkey and metadata
@@ -86,6 +92,7 @@ interface Nip46Response {
   - Returns user pubkey and connection details for session creation
 
 #### NIP-44 Encryption Module (`services/nip44-crypto.ts`)
+
 - `deriveConversationKey(privateKey: string, publicKey: string): Uint8Array`
 - `encrypt(plaintext: string, conversationKey: Uint8Array): string`
 - `decrypt(ciphertext: string, conversationKey: Uint8Array): string`
@@ -93,6 +100,7 @@ interface Nip46Response {
 ### 2. Session Management Service (`services/session-manager.ts`)
 
 #### Responsibilities
+
 - Create sessions after successful NIP-46 handshake
 - Retrieve sessions from Valkey by user public key
 - Check session expiration status
@@ -100,13 +108,15 @@ interface Nip46Response {
 - Track multi-device sessions (same user, multiple devices)
 
 #### Key Types
+
 ```typescript
 interface SessionManagerConfig {
-  sessionTtlHours?: number;  // Default: 24
+  sessionTtlHours?: number; // Default: 24
 }
 ```
 
 #### Functions
+
 - `createSession(connection: Nip46Connection, userPubkey: string): Promise<SessionState>`
   - Builds session state using `buildSessionState()` from schemas
   - Serializes using `sessionModelToCsv` codec
@@ -133,6 +143,7 @@ interface SessionManagerConfig {
 ### 3. Keepalive Service (`services/keepalive.ts`)
 
 #### Responsibilities
+
 - Track active sessions requiring keepalive
 - Send NIP-46 ping messages every 60 seconds
 - Handle pong responses and failures
@@ -140,6 +151,7 @@ interface SessionManagerConfig {
 - Run as background process on Deno server
 
 #### Key Types
+
 ```typescript
 interface KeepaliveTracker {
   userPubkey: string;
@@ -150,6 +162,7 @@ interface KeepaliveTracker {
 ```
 
 #### Functions
+
 - `startKeepalive(userPubkey: string, connection: Nip46Connection): void`
   - Adds session to keepalive tracking
   - Starts ping interval if not already running
@@ -170,7 +183,9 @@ interface KeepaliveTracker {
 ## Implementation Order
 
 ### Step 1: NIP-44 Crypto Module
+
 Create `services/nip44-crypto.ts`:
+
 - Implement ECDH shared secret derivation using `@noble/curves/secp256k1`
 - Implement HKDF key derivation
 - Implement ChaCha20-Poly1305 encryption/decryption using `@noble/ciphers`
@@ -178,7 +193,9 @@ Create `services/nip44-crypto.ts`:
 - Write unit tests
 
 ### Step 2: NIP-46 Remote Signing Service
+
 Create `services/nip46-auth.ts`:
+
 - Define types and interfaces
 - Implement URL generation and parsing
 - Implement request/response protocol
@@ -186,14 +203,18 @@ Create `services/nip46-auth.ts`:
 - Write unit tests
 
 ### Step 3: Session Management Service
+
 Create `services/session-manager.ts`:
+
 - Implement CRUD operations for sessions
 - Integrate with Valkey client
 - Use existing session schema and codec
 - Write unit tests
 
 ### Step 4: Keepalive Service
+
 Create `services/keepalive.ts`:
+
 - Implement session tracking
 - Implement ping/pong protocol using NIP-46 service
 - Implement background loop
@@ -203,14 +224,24 @@ Create `services/keepalive.ts`:
 ## Error Handling
 
 ### Custom Error Types
+
 ```typescript
-class Nip46Error extends Error { /* NIP-46 protocol errors */ }
-class Nip44Error extends Error { /* Encryption/decryption errors */ }
-class SessionError extends Error { /* Session management errors */ }
-class KeepaliveError extends Error { /* Keepalive failures */ }
+class Nip46Error extends Error {
+  /* NIP-46 protocol errors */
+}
+class Nip44Error extends Error {
+  /* Encryption/decryption errors */
+}
+class SessionError extends Error {
+  /* Session management errors */
+}
+class KeepaliveError extends Error {
+  /* Keepalive failures */
+}
 ```
 
 ### Error Scenarios
+
 - Relay connection failures
 - Encryption/decryption failures
 - Handshake timeouts
@@ -221,12 +252,14 @@ class KeepaliveError extends Error { /* Keepalive failures */ }
 ## Testing Strategy
 
 ### Unit Tests
+
 - NIP-44 encryption/decryption with test vectors
 - URL generation and parsing
 - Session state serialization roundtrip
 - Session validation logic
 
 ### Integration Tests (mocked relay)
+
 - Complete handshake flow
 - Session creation and retrieval
 - Keepalive ping/pong cycle
