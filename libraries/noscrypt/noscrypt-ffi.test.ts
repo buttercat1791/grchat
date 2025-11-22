@@ -399,3 +399,85 @@ describe("Noscrypt.generateKeypair()", () => {
     });
   });
 });
+
+describe("Noscrypt.encryptNip44() and Noscrypt.decryptNip44", () => {
+  let noscrypt: Noscrypt;
+
+  beforeEach(() => {
+    noscrypt = new Noscrypt();
+  });
+
+  afterEach(() => {
+    noscrypt.close();
+  });
+
+  describe("NIP-44 encryption", () => {
+    it("encrypts a message and returns an encrypted string that adheres to NIP-44 v2", () => {
+      // Arrange
+      const sender = noscrypt.generateKeypair();
+      const recipient = noscrypt.generateKeypair();
+      const plaintext = "Hello, Nostr!";
+
+      // Act
+      const ciphertext = noscrypt.encryptNip44(
+        sender.secretKey,
+        recipient.publicKey,
+        plaintext,
+      );
+
+      // Assert
+      assertEquals(typeof ciphertext, "string");
+      // Verify it's valid base64
+      const decoded = atob(ciphertext);
+      assertEquals(decoded.length > 0, true);
+      // First byte should be version 0x02
+      assertEquals(decoded.charCodeAt(0), 0x02);
+    });
+
+    it("produces and encrypted message the recipient is able to decrypt", () => {
+      // Arrange
+      const sender = noscrypt.generateKeypair();
+      const recipient = noscrypt.generateKeypair();
+      const originalMessage = "Hello, Nostr!";
+
+      const ciphertext = noscrypt.encryptNip44(
+        sender.secretKey,
+        recipient.publicKey,
+        originalMessage,
+      );
+
+      // Act
+      const decrypted = noscrypt.decryptNip44(
+        recipient.secretKey,
+        sender.publicKey,
+        ciphertext,
+      );
+
+      // Assert
+      assertEquals(decrypted, originalMessage);
+    });
+
+    it("produces an encrypted message the sender is able to decrypt", () => {
+      // Arrange
+      const sender = noscrypt.generateKeypair();
+      const recipient = noscrypt.generateKeypair();
+      const originalMessage = "Secret message";
+
+      const ciphertext = noscrypt.encryptNip44(
+        sender.secretKey,
+        recipient.publicKey,
+        originalMessage,
+      );
+
+      // Act - sender decrypts using their secret key and recipient's public key
+      const decrypted = noscrypt.decryptNip44(
+        sender.secretKey,
+        recipient.publicKey,
+        ciphertext,
+      );
+
+      // Assert
+      assertEquals(decrypted, originalMessage);
+    });
+  });
+});
