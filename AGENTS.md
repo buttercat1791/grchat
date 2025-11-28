@@ -18,7 +18,7 @@ Grchat bundles two components:
 - [Valkey](https://valkey.io/) provides the application database.
 - The application server is built atop [Deno](https://docs.deno.com/runtime/).
 - The UI is written in the [Fresh](https://fresh.deno.dev/docs/introduction) framework.
-- Styling is accomplished via TailwindCSS with [DaisyUI](https://daisyui.com/docs/intro/).
+- Styling is accomplished via TailwindCSS with [DaisyUI](https://daisyui.com/llms.txt).
 - The Deno server uses [Valkey GLIDE](https://valkey.io/valkey-glide/) as its Valkey client library.
 - Docker containers provide portability:
   - The Valkey database receives a dedicated Docker container.
@@ -81,6 +81,7 @@ Use the `AI-` comment format to communicate and clarify the intent of the code b
 - Before writing any code, _always_ write an implementation plan using Markdown formatting and place it in the [plans/](./plans) directory/
 - Before interacting with code written in a language other than TypeScript or JavaScript, consult the project's [FFI](./architecture/FFI.md) documentation.
 - When it is necessary to write a summary of development work, or to write notes on a particular implementation, place these notes and summaries in Markdown files in an appropriate subdirectory under [notes/](./notes/).
+- Always use context7 to support tasks involving code generation, setup, or configuration; or to access library/API documentation. Automatically use the Context7 MCP tools to resolve library id and get library docs without explicitly being prompted to do so.
 
 ### Unit Testing Guidelines
 
