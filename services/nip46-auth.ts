@@ -10,7 +10,13 @@
 
 import { z } from "zod";
 import { Noscrypt } from "@/libraries/noscrypt/noscrypt-ffi.ts";
-import { NID, NostrEvent, NostrEventBase } from "@/schemas/nostr-events.ts";
+import {
+  NIDSchema,
+  type NostrEvent,
+  type NostrEventBase,
+  NostrEventBaseSchema,
+  NostrEventSchema,
+} from "@/schemas/nostr-events.ts";
 import { RelayPool } from "./relay-pool.ts";
 import { signEvent } from "./nostr/crypto.ts";
 
@@ -47,7 +53,7 @@ type Nip46Response = z.infer<typeof Nip46ResponseSchema>;
 /**
  * Zod schema for NIP-46 connection state.
  */
-const Nip46ConnectionSchema = z.object({
+export const Nip46ConnectionSchema = z.object({
   /** Ephemeral secret key for this connection session */
   clientSecretKey: z.string(),
   /** Ephemeral public key derived from clientSecretKey */
@@ -197,19 +203,20 @@ type ResponseHandlerContext = z.infer<typeof ResponseHandlerContextSchema>;
  */
 function handleHandshakeEvent(
   this: HandshakeContext,
-  event: z.infer<typeof NostrEvent>,
+  event: NostrEvent,
 ): void {
   // Precondition: validate bound context
   const ctx = HandshakeContextSchema.parse(this);
+  const ev = NostrEventSchema.parse(event);
 
-  if (event.kind !== NIP46_KIND) return;
+  if (ev.kind !== NIP46_KIND) return;
 
   // Decrypt the message
   using noscrypt = new Noscrypt();
   const decrypted = noscrypt.decryptNip44(
     ctx.clientSecretKey,
-    event.pubkey,
-    event.content,
+    ev.pubkey,
+    ev.content,
   );
 
   const response = Nip46ResponseSchema.parse(JSON.parse(decrypted));
@@ -223,13 +230,13 @@ function handleHandshakeEvent(
     ctx.clearTimeout();
 
     // Complete the connection
-    const connection: Nip46Connection = {
+    const connection = Nip46ConnectionSchema.parse({
       clientSecretKey: ctx.clientSecretKey,
       clientPubkey: ctx.clientPubkey,
       signerPubkey: event.pubkey,
       relayUrls: ctx.relayUrls,
       secret: ctx.secret,
-    };
+    });
 
     // Get the user's actual public key
     const userPubkey = ctx.getUserPublicKey(connection);
@@ -282,20 +289,21 @@ function setupPendingRequest(this: PendingRequestContext): Promise<
  */
 function handleSignerResponse(
   this: ResponseHandlerContext,
-  event: z.infer<typeof NostrEvent>,
+  event: NostrEvent,
 ): void {
   // Precondition: validate bound context
   const ctx = ResponseHandlerContextSchema.parse(this);
+  const ev = NostrEventSchema.parse(event);
 
-  if (event.kind !== NIP46_KIND) return;
-  if (event.pubkey !== ctx.connection.signerPubkey) return;
+  if (ev.kind !== NIP46_KIND) return;
+  if (ev.pubkey !== ctx.connection.signerPubkey) return;
 
   try {
     using nc = new Noscrypt();
     const decrypted = nc.decryptNip44(
       ctx.connection.clientSecretKey,
-      event.pubkey,
-      event.content,
+      ev.pubkey,
+      ev.content,
     );
 
     const response = Nip46ResponseSchema.parse(JSON.parse(decrypted));
@@ -360,6 +368,9 @@ export class Nip46Service {
     relayUrls: string[],
     metadata?: AppMetadata,
   ): NostrconnectResult {
+    // TODO: Define a Zod codec for a nostrconnect URL for ease of serialization.
+    const meta = AppMetadataSchema.parse(metadata);
+
     if (relayUrls.length === 0) {
       throw new Nip46Error("At least one relay URL is required");
     }
@@ -382,10 +393,10 @@ export class Nip46Service {
     }
     params.append("secret", secret);
 
-    if (metadata?.name) params.append("name", metadata.name);
-    if (metadata?.url) params.append("url", metadata.url);
-    if (metadata?.image) params.append("image", metadata.image);
-    if (metadata?.perms) params.append("perms", metadata.perms);
+    if (meta?.name) params.append("name", meta.name);
+    if (meta?.url) params.append("url", meta.url);
+    if (meta?.image) params.append("image", meta.image);
+    if (meta?.perms) params.append("perms", meta.perms);
 
     const url = `nostrconnect://${publicKey}?${params.toString()}`;
 
@@ -409,6 +420,7 @@ export class Nip46Service {
    * @throws {Nip46Error} If the URL is invalid
    */
   parseBunkerUrl(bunkerUrl: string): Nip46Connection {
+    // TODO: Define a Zod codec for a bunker URL for ease of parsing.
     if (!bunkerUrl.startsWith("bunker://")) {
       throw new Nip46Error("Invalid bunker URL: must start with bunker://");
     }
@@ -419,7 +431,7 @@ export class Nip46Service {
 
     // Validate signer pubkey
     try {
-      NID.parse(signerPubkey);
+      NIDSchema.parse(signerPubkey);
     } catch {
       throw new Nip46Error("Invalid bunker URL: invalid signer public key");
     }
@@ -441,8 +453,8 @@ export class Nip46Service {
     const { secretKey, publicKey } = noscrypt.generateKeypair();
 
     return {
-      clientSecretKey: secretKey,
-      clientPubkey: publicKey,
+      clientSecretKey: NIDSchema.parse(secretKey),
+      clientPubkey: NIDSchema.parse(publicKey),
       signerPubkey,
       relayUrls,
       secret,
@@ -450,7 +462,7 @@ export class Nip46Service {
   }
 
   /**
-   * Awaits a signer's response to a nostrconnect:// URL.
+   * Awaits a signer's response to a nostrconnect:// (client-initiated) connection.
    *
    * @param partialConnection - The connection state from generateNostrconnectUrl
    * @param timeout - Timeout in milliseconds (default: 30s)
@@ -459,11 +471,11 @@ export class Nip46Service {
    * @throws {Nip46Error} If the handshake times out or fails
    */
   async awaitHandshake(
-    partialConnection: Omit<Nip46Connection, "signerPubkey">,
+    connectionData: Omit<Nip46Connection, "signerPubkey">,
     timeout: number = DEFAULT_TIMEOUT,
   ): Promise<HandshakeResult> {
     const { clientSecretKey, clientPubkey, relayUrls, secret } =
-      partialConnection;
+      Nip46ConnectionSchema.omit({ signerPubkey: true }).parse(connectionData);
 
     // Connect to relays and subscribe for responses
     for (const relay of relayUrls) {
@@ -500,28 +512,30 @@ export class Nip46Service {
 
       const handleEvent = handleHandshakeEvent.bind(ctx);
 
-      // Subscribe on first relay (NIP-46 typically uses single relay)
-      this.#relayPool
-        .subscribe(relayUrls[0], [{
-          kinds: [NIP46_KIND],
-          "#p": [clientPubkey],
-        }], handleEvent)
-        .then((id) => {
-          subId = id;
-        })
-        .catch((error) => {
-          clearTimeout(timeoutId);
-          reject(
-            new Nip46Error("Failed to subscribe for handshake", {
-              cause: error,
-            }),
-          );
-        });
+      // Subscribe on connection relays
+      for (const relayUrl of relayUrls) {
+        this.#relayPool
+          .subscribe(relayUrl, [{
+            kinds: [NIP46_KIND],
+            "#p": [clientPubkey],
+          }], handleEvent)
+          .then((id) => {
+            subId = id;
+          })
+          .catch((error) => {
+            clearTimeout(timeoutId);
+            reject(
+              new Nip46Error("Failed to subscribe for handshake", {
+                cause: error,
+              }),
+            );
+          });
+      }
     });
   }
 
   /**
-   * Completes the handshake for a bunker:// connection.
+   * Completes the handshake for a bunker:// (signer-initiated) connection.
    *
    * @param connection - The connection state from parseBunkerUrl
    * @returns The completed handshake result
@@ -531,21 +545,23 @@ export class Nip46Service {
   async completeHandshake(
     connection: Nip46Connection,
   ): Promise<HandshakeResult> {
+    const conn = Nip46ConnectionSchema.parse(connection);
+
     // If there's a secret, we need to send a connect acknowledgment first
-    if (connection.secret) {
-      await this.sendRemoteSignerRequest(connection, {
+    if (conn.secret) {
+      await this.sendRemoteSignerRequest(conn, {
         id: crypto.randomUUID(),
         method: "connect",
-        params: [connection.clientPubkey, connection.secret],
+        params: [conn.clientPubkey, conn.secret],
       });
     }
 
     // Get the user's actual public key
-    const userPubkey = await this.#getUserPublicKey(connection);
+    const userPubkey = await this.#getUserPublicKey(conn);
 
     return {
       userPubkey,
-      connection,
+      connection: conn,
     };
   }
 
@@ -556,7 +572,9 @@ export class Nip46Service {
    * @returns The user's public key
    */
   async #getUserPublicKey(connection: Nip46Connection): Promise<string> {
-    const response = await this.sendRemoteSignerRequest(connection, {
+    const conn = Nip46ConnectionSchema.parse(connection);
+
+    const response = await this.sendRemoteSignerRequest(conn, {
       id: crypto.randomUUID(),
       method: "get_public_key",
       params: [],
@@ -572,7 +590,7 @@ export class Nip46Service {
 
     // Validate the public key format
     try {
-      NID.parse(response.result);
+      NIDSchema.parse(response.result);
     } catch {
       throw new Nip46Error("Invalid public key format in response");
     }
@@ -593,56 +611,61 @@ export class Nip46Service {
     request: Nip46Request,
     timeout: number = DEFAULT_TIMEOUT,
   ): Promise<Nip46Response> {
+    const conn = Nip46ConnectionSchema.parse(connection);
+    const req = Nip46RequestSchema.parse(request);
+
     // Encrypt the request payload
     using noscrypt = new Noscrypt();
-    const payload = JSON.stringify(request);
+    const payload = JSON.stringify(req);
     const encrypted = noscrypt.encryptNip44(
-      connection.clientSecretKey,
-      connection.signerPubkey,
+      conn.clientSecretKey,
+      conn.signerPubkey,
       payload,
     );
 
     // Create the NIP-46 event
-    const eventBase: z.infer<typeof NostrEventBase> = {
-      pubkey: connection.clientPubkey,
+    const baseEvent = NostrEventBaseSchema.parse({
+      pubkey: conn.clientPubkey,
       created_at: Math.floor(Date.now() / 1000),
       kind: NIP46_KIND,
-      tags: [["p", connection.signerPubkey]],
+      tags: [["p", conn.signerPubkey]],
       content: encrypted,
-    };
+    });
 
     // Sign the event
-    const signedEvent = await signEvent(eventBase, connection.clientSecretKey);
+    const signedEvent = NostrEventSchema.parse(
+      await signEvent(baseEvent, conn.clientSecretKey),
+    );
 
     // Set up pending request using bind
     const responsePromise = setupPendingRequest.bind({
-      requestId: request.id,
-      method: request.method,
+      requestId: req.id,
+      method: req.method,
       timeout,
       pendingRequests: this.#pendingRequests,
     })();
 
     // Create response handler using bind
     const handleResponse = handleSignerResponse.bind({
-      connection,
+      connection: conn,
       pendingRequests: this.#pendingRequests,
     });
 
     // Subscribe on first relay
     const subId = await this.#relayPool.subscribe(
-      connection.relayUrls[0],
-      [{ kinds: [NIP46_KIND], "#p": [connection.clientPubkey] }],
+      conn.relayUrls[0],
+      [{ kinds: [NIP46_KIND], "#p": [conn.clientPubkey] }],
       handleResponse,
     );
 
     try {
       // Publish the request
-      await this.#relayPool.publish(connection.relayUrls[0], signedEvent);
+      await this.#relayPool.publish(conn.relayUrls[0], signedEvent);
 
       // Wait for response
-      return await responsePromise;
+      return Nip46ResponseSchema.parse(await responsePromise);
     } finally {
-      this.#relayPool.unsubscribe(connection.relayUrls[0], subId);
+      this.#relayPool.unsubscribe(conn.relayUrls[0], subId);
     }
   }
 
@@ -657,9 +680,11 @@ export class Nip46Service {
     connection: Nip46Connection,
     timeout: number = 10000,
   ): Promise<boolean> {
+    const conn = Nip46ConnectionSchema.parse(connection);
+
     try {
       const response = await this.sendRemoteSignerRequest(
-        connection,
+        conn,
         {
           id: crypto.randomUUID(),
           method: "ping",
@@ -683,24 +708,28 @@ export class Nip46Service {
    */
   async requestSignEvent(
     connection: Nip46Connection,
-    event: z.infer<typeof NostrEventBase>,
-  ): Promise<z.infer<typeof NostrEvent>> {
-    const response = await this.sendRemoteSignerRequest(connection, {
+    event: NostrEventBase,
+  ): Promise<NostrEvent> {
+    const conn = Nip46ConnectionSchema.parse(connection);
+    const ev = NostrEventBaseSchema.parse(event);
+
+    const response = await this.sendRemoteSignerRequest(conn, {
       id: crypto.randomUUID(),
       method: "sign_event",
-      params: [JSON.stringify(event)],
+      params: [JSON.stringify(ev)],
     });
+    const res = Nip46ResponseSchema.parse(response);
 
-    if (response.error) {
-      throw new Nip46Error(`Failed to sign event: ${response.error}`);
+    if (res.error) {
+      throw new Nip46Error(`Failed to sign event: ${res.error}`);
     }
 
-    if (!response.result) {
+    if (!res.result) {
       throw new Nip46Error("No signed event in response");
     }
 
-    const signedEvent = JSON.parse(response.result);
-    return NostrEvent.parse(signedEvent);
+    const signedEvent = JSON.parse(res.result);
+    return NostrEventSchema.parse(signedEvent);
   }
 }
 

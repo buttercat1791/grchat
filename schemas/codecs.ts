@@ -5,8 +5,8 @@
  */
 
 import z from "zod";
-import { NostrEventBase } from "./nostr-events.ts";
-import { SessionState } from "./session.ts";
+import { NostrEventBaseSchema } from "./nostr-events.ts";
+import { SessionStateSchema } from "./session.ts";
 
 export const utf8ToBytes = z.codec(z.string(), z.instanceof(Uint8Array), {
   decode: (str) => new TextEncoder().encode(str),
@@ -23,7 +23,7 @@ export const hexToBytes = z.codec(z.hex(), z.instanceof(Uint8Array), {
   encode: (bytes) => z.util.uint8ArrayToHex(bytes),
 });
 
-export const eventToSignatureData = NostrEventBase.transform((event) => [
+export const eventToSignatureData = NostrEventBaseSchema.transform((event) => [
   0,
   event.pubkey,
   event.created_at,
@@ -33,7 +33,7 @@ export const eventToSignatureData = NostrEventBase.transform((event) => [
 ]);
 
 export const sessionModelToCsv = z.codec(
-  SessionState,
+  SessionStateSchema,
   z.stringFormat("semicolon-csv", /^[^;]*(;[^;]*)*$/),
   {
     decode: (session) =>
@@ -47,7 +47,7 @@ export const sessionModelToCsv = z.codec(
       ].join(";"),
     encode: (csv) => {
       const parts = csv.split(";");
-      return SessionState.parse({
+      return SessionStateSchema.parse({
         userPubkey: parts[0],
         signerPubkey: parts[1],
         relayUrls: parts[2].split("|"),

@@ -3,12 +3,14 @@
  */
 
 import { z } from "zod";
-import { NostrEvent } from "@/schemas/nostr-events.ts";
+import { NostrEvent, NostrEventSchema } from "@/schemas/nostr-events.ts";
 import {
-  ClientCloseMessage,
-  ClientEventMessage,
-  NostrFilter,
-  RelayMessage,
+  type ClientCloseMessage,
+  type ClientEventMessage,
+  type NostrFilter,
+  NostrFilterSchema,
+  type RelayMessage,
+  RelayMessageSchema,
 } from "../schemas/nostr-messages.ts";
 
 /**
@@ -24,12 +26,12 @@ export class RelayError extends Error {
 /**
  * Subscription callback function.
  */
-type SubscriptionCallback = (event: z.infer<typeof NostrEvent>) => void;
+type SubscriptionCallback = (event: NostrEvent) => void;
 
 /**
  * Message handler for relay messages.
  */
-type MessageHandler = (message: z.infer<typeof RelayMessage>) => void;
+type MessageHandler = (message: RelayMessage) => void;
 
 /**
  * Connection state for a relay.
@@ -103,9 +105,11 @@ export class RelayPool implements Disposable {
    * @throws {RelayError} If connection fails or times out
    */
   async connect(url: string): Promise<void> {
-    this.#assertNotClosed();
+    // Precondition: validate URL argument
+    const connUrl = z.url().parse(url);
 
-    const normalizedUrl = this.#normalizeUrl(url);
+    this.#assertNotClosed();
+    const normalizedUrl = this.#normalizeUrl(connUrl);
 
     // Return if already connected
     const existing = this.#connections.get(normalizedUrl);
@@ -169,7 +173,7 @@ export class RelayPool implements Disposable {
   #handleMessage(connection: RelayConnection, data: string): void {
     try {
       const parsed = JSON.parse(data);
-      const result = RelayMessage.safeParse(parsed);
+      const result = RelayMessageSchema.safeParse(parsed);
 
       if (!result.success) {
         console.warn(
@@ -215,12 +219,16 @@ export class RelayPool implements Disposable {
    */
   async subscribe(
     url: string,
-    filters: z.infer<typeof NostrFilter>[],
+    filters: NostrFilter[],
     callback: SubscriptionCallback,
   ): Promise<string> {
-    this.#assertNotClosed();
+    // Preconditions: validate arguments
+    const subUrl = z.url().parse(url);
+    const subFilters = z.array(NostrFilterSchema).parse(filters);
 
-    const normalizedUrl = this.#normalizeUrl(url);
+    this.#assertNotClosed();
+    const normalizedUrl = this.#normalizeUrl(subUrl);
+
     await this.connect(normalizedUrl);
 
     const connection = this.#connections.get(normalizedUrl);
@@ -231,7 +239,7 @@ export class RelayPool implements Disposable {
     const subId = crypto.randomUUID();
     connection.subscriptions.set(subId, callback);
 
-    const message = ["REQ", subId, ...filters];
+    const message = ["REQ", subId, ...subFilters];
     connection.socket.send(JSON.stringify(message));
 
     return subId;
@@ -244,16 +252,20 @@ export class RelayPool implements Disposable {
    * @param subId - The subscription ID to close
    */
   unsubscribe(url: string, subId: string): void {
-    this.#assertNotClosed();
+    // Preconditions: validate arguments
+    const subUrl = z.url().parse(url);
+    const id = z.uuid().parse(subId);
 
-    const normalizedUrl = this.#normalizeUrl(url);
+    this.#assertNotClosed();
+    const normalizedUrl = this.#normalizeUrl(subUrl);
+
     const connection = this.#connections.get(normalizedUrl);
     if (!connection) return;
 
-    connection.subscriptions.delete(subId);
+    connection.subscriptions.delete(id);
 
     if (connection.state === "connected") {
-      const message: z.infer<typeof ClientCloseMessage> = ["CLOSE", subId];
+      const message: ClientCloseMessage = ["CLOSE", id];
       connection.socket.send(JSON.stringify(message));
     }
   }
@@ -271,11 +283,15 @@ export class RelayPool implements Disposable {
    */
   async fetchEvent(
     url: string,
-    filters: z.infer<typeof NostrFilter>[],
-  ): Promise<z.infer<typeof NostrEvent> | null> {
-    this.#assertNotClosed();
+    filters: NostrFilter[],
+  ): Promise<NostrEvent | null> {
+    // Preconditions: validate arguments
+    const fetchUrl = z.url().parse(url);
+    const fetchFilters = z.array(NostrFilterSchema).parse(filters);
 
-    const normalizedUrl = this.#normalizeUrl(url);
+    this.#assertNotClosed();
+    const normalizedUrl = this.#normalizeUrl(fetchUrl);
+
     await this.connect(normalizedUrl);
 
     const connection = this.#connections.get(normalizedUrl);
@@ -291,7 +307,7 @@ export class RelayPool implements Disposable {
         connection.subscriptions.delete(subId);
         connection.messageHandlers.delete(handler);
         if (connection.state === "connected") {
-          const closeMessage: z.infer<typeof ClientCloseMessage> = [
+          const closeMessage: ClientCloseMessage = [
             "CLOSE",
             subId,
           ];
@@ -317,7 +333,7 @@ export class RelayPool implements Disposable {
       connection.subscriptions.set(subId, () => {});
       connection.messageHandlers.add(handler);
 
-      const reqMessage = ["REQ", subId, ...filters];
+      const reqMessage = ["REQ", subId, ...fetchFilters];
       connection.socket.send(JSON.stringify(reqMessage));
     });
   }
@@ -333,11 +349,15 @@ export class RelayPool implements Disposable {
    */
   async publish(
     url: string,
-    event: z.infer<typeof NostrEvent>,
+    event: NostrEvent,
   ): Promise<{ success: boolean; message: string }> {
-    this.#assertNotClosed();
+    // Preconditions: validate arguments
+    const pubUrl = z.url().parse(url);
+    const ev = NostrEventSchema.parse(event);
 
-    const normalizedUrl = this.#normalizeUrl(url);
+    this.#assertNotClosed();
+    const normalizedUrl = this.#normalizeUrl(pubUrl);
+
     await this.connect(normalizedUrl);
 
     const connection = this.#connections.get(normalizedUrl);
@@ -352,7 +372,7 @@ export class RelayPool implements Disposable {
       }, this.#config.connectionTimeout);
 
       const handler: MessageHandler = (message) => {
-        if (message[0] === "OK" && message[1] === event.id) {
+        if (message[0] === "OK" && message[1] === ev.id) {
           clearTimeout(timeout);
           connection.messageHandlers.delete(handler);
           resolve({
@@ -364,9 +384,9 @@ export class RelayPool implements Disposable {
 
       connection.messageHandlers.add(handler);
 
-      const clientMessage: z.infer<typeof ClientEventMessage> = [
+      const clientMessage: ClientEventMessage = [
         "EVENT",
-        event,
+        ev,
       ];
       connection.socket.send(JSON.stringify(clientMessage));
     });
@@ -379,9 +399,12 @@ export class RelayPool implements Disposable {
    * @param handler - The message handler function
    */
   addMessageHandler(url: string, handler: MessageHandler): void {
-    this.#assertNotClosed();
+    // Precondition: validate URL argument
+    const relayUrl = z.url().parse(url);
 
-    const normalizedUrl = this.#normalizeUrl(url);
+    this.#assertNotClosed();
+    const normalizedUrl = this.#normalizeUrl(relayUrl);
+
     const connection = this.#connections.get(normalizedUrl);
     if (connection) {
       connection.messageHandlers.add(handler);
@@ -395,7 +418,10 @@ export class RelayPool implements Disposable {
    * @param handler - The message handler function to remove
    */
   removeMessageHandler(url: string, handler: MessageHandler): void {
-    const normalizedUrl = this.#normalizeUrl(url);
+    // Precondition: validate URL argument
+    const relayUrl = z.url().parse(url);
+
+    const normalizedUrl = this.#normalizeUrl(relayUrl);
     const connection = this.#connections.get(normalizedUrl);
     if (connection) {
       connection.messageHandlers.delete(handler);
@@ -408,7 +434,10 @@ export class RelayPool implements Disposable {
    * @param url - The relay URL to disconnect from
    */
   disconnect(url: string): void {
-    const normalizedUrl = this.#normalizeUrl(url);
+    // Precondition: validate URL argument
+    const relayUrl = z.url().parse(url);
+
+    const normalizedUrl = this.#normalizeUrl(relayUrl);
     const connection = this.#connections.get(normalizedUrl);
     if (connection) {
       connection.socket.close();
@@ -425,7 +454,10 @@ export class RelayPool implements Disposable {
   getState(
     url: string,
   ): "connecting" | "connected" | "disconnected" | undefined {
-    const normalizedUrl = this.#normalizeUrl(url);
+    // Precondition: validate URL argument
+    const relayUrl = z.url().parse(url);
+
+    const normalizedUrl = this.#normalizeUrl(relayUrl);
     return this.#connections.get(normalizedUrl)?.state;
   }
 

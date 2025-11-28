@@ -12,9 +12,11 @@ import {
   buildSessionState,
   isSessionValid,
   SessionState,
+  SessionStateSchema,
 } from "@/schemas/session.ts";
 import { sessionModelToCsv } from "@/schemas/codecs.ts";
-import { Nip46Connection } from "./nip46-auth.ts";
+import { Nip46Connection, Nip46ConnectionSchema } from "./nip46-auth.ts";
+import { NIDSchema } from "@/schemas/nostr-events.ts";
 
 /**
  * Error thrown when session operations fail.
@@ -95,13 +97,17 @@ export class SessionManager {
     connection: Nip46Connection,
     userPubkey: string,
   ): Promise<SessionState> {
+    // Preconditions: validate arguments
+    const conn = Nip46ConnectionSchema.parse(connection);
+    const userPK = NIDSchema.parse(userPubkey);
+
     // Build session state
     let session: SessionState;
     try {
       session = buildSessionState(
-        userPubkey,
-        connection.signerPubkey,
-        connection.relayUrls,
+        userPK,
+        conn.signerPubkey,
+        conn.relayUrls,
       );
     } catch (error) {
       throw new SessionError("Failed to create session", { cause: error });
@@ -111,12 +117,13 @@ export class SessionManager {
     const csv = sessionModelToCsv.decode(session);
 
     // Store in Valkey with TTL
-    const key = this.buildSessionKey(userPubkey);
+    const key = this.buildSessionKey(userPK);
     const success = await this.#valkeyClient.setWithTTL(
       key,
       csv,
       SESSION_TTL_SECONDS,
     );
+
     if (!success) {
       throw new SessionError(
         "Failed to set session data and/or TTL to database",
@@ -135,15 +142,19 @@ export class SessionManager {
   async getSession(
     userPubkey: string,
   ): Promise<SessionState | null> {
-    const key = this.buildSessionKey(userPubkey);
+    // Precondition: validate user pubkey argument
+    const userPK = NIDSchema.parse(userPubkey);
 
+    const key = this.buildSessionKey(userPK);
     const csv = await this.#valkeyClient.getString(key);
+
     if (!csv) {
       return null;
     }
 
     // Deserialize from CSV
-    return sessionModelToCsv.encode(csv);
+    const session = sessionModelToCsv.encode(csv);
+    return SessionStateSchema.parse(session);
   }
 
   /**
@@ -154,7 +165,10 @@ export class SessionManager {
    * @throws {SessionError} If the update fails
    */
   async updateSession(session: SessionState): Promise<void> {
-    const key = this.buildSessionKey(session.userPubkey);
+    // Precondition: validate session argument
+    const sess = SessionStateSchema.parse(session);
+
+    const key = this.buildSessionKey(sess.userPubkey);
 
     // Get current TTL
     const ttl = await this.#valkeyClient.ttl(key);
@@ -163,7 +177,7 @@ export class SessionManager {
     }
 
     // Serialize to CSV
-    const csv = sessionModelToCsv.decode(session);
+    const csv = sessionModelToCsv.decode(sess);
 
     // Update with preserved TTL
     const success = await this.#valkeyClient.setWithTTL(key, csv, ttl);
@@ -182,7 +196,10 @@ export class SessionManager {
    * @throws {SessionError} If the deletion fails
    */
   async deleteSession(userPubkey: string): Promise<void> {
-    const key = this.buildSessionKey(userPubkey);
+    // Precondition: validate user pubkey argument
+    const userPK = NIDSchema.parse(userPubkey);
+
+    const key = this.buildSessionKey(userPK);
     const success = await this.#valkeyClient.delete(key);
     if (!success) {
       throw new SessionError("Failed to delete session");
@@ -197,7 +214,10 @@ export class SessionManager {
    * @returns Validation result with session if valid
    */
   async validateSession(userPubkey: string): Promise<SessionValidation> {
-    const session = await this.getSession(userPubkey);
+    // Precondition: validate user pubkey argument
+    const userPK = NIDSchema.parse(userPubkey);
+
+    const session = await this.getSession(userPK);
 
     if (!session) {
       return { valid: false, reason: "not_found" };
@@ -218,16 +238,21 @@ export class SessionManager {
    * @throws {SessionError} If session not found or update fails
    */
   async markChallengeSucceeded(userPubkey: string): Promise<void> {
-    const session = await this.getSession(userPubkey);
+    // Precondition: validate user pubkey argument
+    const userPK = NIDSchema.parse(userPubkey);
 
+    const session = await this.getSession(userPK);
     if (!session) {
       throw new SessionError("Session not found");
     }
 
-    session.challengeState = "succeeded";
-    session.challengeIssuedAt = new Date().toISOString();
+    const updatedSession = SessionStateSchema.parse({
+      ...session,
+      challengeState: "succeeded",
+      challengeIssuedAt: new Date().toISOString(),
+    });
 
-    await this.updateSession(session);
+    await this.updateSession(updatedSession);
   }
 
   /**
@@ -238,15 +263,20 @@ export class SessionManager {
    * @throws {SessionError} If session not found or update fails
    */
   async markChallengeFailed(userPubkey: string): Promise<void> {
-    const session = await this.getSession(userPubkey);
+    // Precondition: validate user pubkey argument
+    const userPK = NIDSchema.parse(userPubkey);
 
+    const session = await this.getSession(userPK);
     if (!session) {
       throw new SessionError("Session not found");
     }
 
-    session.challengeState = "failed";
+    const updatedSession = SessionStateSchema.parse({
+      ...session,
+      challengeState: "failed",
+    });
 
-    await this.updateSession(session);
+    await this.updateSession(updatedSession);
   }
 
   /**
@@ -256,7 +286,10 @@ export class SessionManager {
    * @returns True if session exists, false otherwise
    */
   sessionExists(userPubkey: string): Promise<boolean> {
-    const key = this.buildSessionKey(userPubkey);
+    // Precondition: validate user pubkey argument
+    const userPK = NIDSchema.parse(userPubkey);
+
+    const key = this.buildSessionKey(userPK);
     return this.#valkeyClient.hasKey(key);
   }
 
@@ -267,7 +300,10 @@ export class SessionManager {
    * @returns TTL in seconds, or null if key doesn't exist or has no expiry.
    */
   getSessionTTL(userPubkey: string): Promise<number | null> {
-    const key = this.buildSessionKey(userPubkey);
+    // Precondition: validate user pubkey argument
+    const userPK = NIDSchema.parse(userPubkey);
+
+    const key = this.buildSessionKey(userPK);
     return this.#valkeyClient.ttl(key);
   }
 
@@ -275,6 +311,7 @@ export class SessionManager {
    * Gets the Valkey key for a session.
    */
   private buildSessionKey(userPubkey: string): string {
+    // AI-NOTE: userPubkey is already validated by callers
     return `${SESSION_KEY_PREFIX}${userPubkey}`;
   }
 }
