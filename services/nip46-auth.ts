@@ -471,10 +471,15 @@ export class Nip46Service {
     }
 
     return new Promise((resolve, reject) => {
-      let timeoutId: ReturnType<typeof setTimeout>;
+      let ctx: HandshakeContext | null = null;
+      const timeoutId = setTimeout(() => {
+        ctx?.unsubscribeAll();
+        reject(new Nip46Error("Handshake timed out"));
+      }, timeout);
+
       let subId: string | undefined;
 
-      const ctx: HandshakeContext = {
+      ctx = {
         clientSecretKey,
         clientPubkey,
         relayUrls,
@@ -492,11 +497,6 @@ export class Nip46Service {
           (connection: Nip46Connection) => this.#getUserPublicKey(connection),
         ),
       };
-
-      timeoutId = setTimeout(() => {
-        ctx.unsubscribeAll();
-        reject(new Nip46Error("Handshake timed out"));
-      }, timeout);
 
       const handleEvent = handleHandshakeEvent.bind(ctx);
 

@@ -20,7 +20,7 @@ export const ChallengeState = z.enum(["pending", "succeeded", "failed"]);
 /**
  * Session state for an authenticated user.
  */
-export const SessionState = z.object({
+export const SessionStateSchema = z.object({
   /** The user's public key (32-byte lowercase hex string) */
   userPubkey: NID,
 
@@ -39,6 +39,7 @@ export const SessionState = z.object({
   /** ISO datetime when the NIP-42 challenge was issued (optional) */
   challengeIssuedAt: z.iso.datetime().optional(),
 });
+export type SessionState = z.infer<typeof SessionStateSchema>;
 
 /**
  * Error thrown when session model operations fail.
@@ -56,10 +57,10 @@ export class SessionModelError extends Error {
  * @param session - The session state to validate
  * @returns True if the session is still valid (not expired), false otherwise
  */
-export function isSessionValid(session: z.infer<typeof SessionState>): boolean {
-  let state: z.infer<typeof SessionState>;
+export function isSessionValid(session: SessionState): boolean {
+  let state: SessionState;
   try {
-    state = SessionState.parse(session);
+    state = SessionStateSchema.parse(session);
   } catch {
     return false;
   }
@@ -77,11 +78,11 @@ export function isSessionValid(session: z.infer<typeof SessionState>): boolean {
  * @returns True if the challenge is still valid (not timed out), false otherwise
  */
 export function isChallengeValid(
-  session: z.infer<typeof SessionState>,
+  session: SessionState,
 ): boolean {
-  let state: z.infer<typeof SessionState>;
+  let state: SessionState;
   try {
-    state = SessionState.parse(session);
+    state = SessionStateSchema.parse(session);
   } catch {
     return false;
   }
@@ -109,7 +110,7 @@ export function isChallengeValid(
  * @returns True if the session is authorized to read, false otherwise
  */
 export function isAuthorizedToRead(
-  session: z.infer<typeof SessionState>,
+  session: SessionState,
 ): boolean {
   return isSessionValid(session) &&
     session.challengeState === "succeeded";
@@ -129,11 +130,11 @@ export function buildSessionState(
   userPubkey: string,
   signerPubkey: string,
   relayUrls: string[],
-): z.infer<typeof SessionState> {
+): SessionState {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
 
-  const sessionState: z.infer<typeof SessionState> = {
+  const sessionState: SessionState = {
     userPubkey,
     signerPubkey,
     relayUrls,
@@ -142,7 +143,7 @@ export function buildSessionState(
   };
 
   try {
-    return SessionState.parse(sessionState);
+    return SessionStateSchema.parse(sessionState);
   } catch (error) {
     throw new SessionModelError("Failed to create session state", {
       cause: error,

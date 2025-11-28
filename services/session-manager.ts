@@ -7,12 +7,10 @@
  * @see ../architecture/SESSIONS.md
  */
 
-import { z } from "zod";
 import { ValkeyClient } from "./valkey-client.ts";
 import {
   buildSessionState,
   isSessionValid,
-  SessionModelError,
   SessionState,
 } from "@/schemas/session.ts";
 import { sessionModelToCsv } from "@/schemas/codecs.ts";
@@ -35,7 +33,7 @@ export interface SessionValidation {
   /** Whether the session is valid */
   valid: boolean;
   /** The session state if valid, undefined otherwise */
-  session?: z.infer<typeof SessionState>;
+  session?: SessionState;
   /** Reason for invalidity if not valid */
   reason?: "not_found" | "expired" | "invalid_format";
 }
@@ -53,8 +51,8 @@ const SESSION_TTL_SECONDS = 24 * 60 * 60;
 /**
  * Session Management Service.
  *
- * Provides CRUD operations for user sessions persisted in Valkey.
- * Sessions are stored as CSV-formatted strings with a 24-hour TTL.
+ * Provides CRUD operations for user sessions persisted in a database. Sessions are stored as
+ * CSV-formatted strings with a 24-hour TTL.
  *
  * @example
  * ```ts
@@ -78,14 +76,14 @@ const SESSION_TTL_SECONDS = 24 * 60 * 60;
  * ```
  */
 export class SessionManager {
-  private valkeyClient: ValkeyClient;
+  #valkeyClient: ValkeyClient;
 
   constructor(valkeyClient: ValkeyClient) {
-    this.valkeyClient = valkeyClient;
+    this.#valkeyClient = valkeyClient;
   }
 
   /**
-   * Creates a new session after successful NIP-46 handshake.
+   * Creates a new session from NIP-46 connection data after a successful handshake.
    *
    * @param connection - The NIP-46 connection state
    * @param userPubkey - The user's public key (identity)
@@ -96,34 +94,36 @@ export class SessionManager {
   async createSession(
     connection: Nip46Connection,
     userPubkey: string,
-  ): Promise<z.infer<typeof SessionState>> {
+  ): Promise<SessionState> {
+    // Build session state
+    let session: SessionState;
     try {
-      // Build session state
-      const session = buildSessionState(
+      session = buildSessionState(
         userPubkey,
         connection.signerPubkey,
         connection.relayUrls,
       );
-
-      // Serialize to CSV
-      const csv = sessionModelToCsv.decode(session);
-
-      // Store in Valkey with TTL
-      const key = this.getSessionKey(userPubkey);
-      const client = this.valkeyClient.getClient();
-
-      await client.set(key, csv);
-      await client.expire(key, SESSION_TTL_SECONDS);
-
-      return session;
     } catch (error) {
-      if (error instanceof SessionModelError) {
-        throw new SessionError("Failed to create session", { cause: error });
-      }
-      throw new SessionError("Failed to store session in database", {
-        cause: error,
-      });
+      throw new SessionError("Failed to create session", { cause: error });
     }
+
+    // Serialize to CSV
+    const csv = sessionModelToCsv.decode(session);
+
+    // Store in Valkey with TTL
+    const key = this.buildSessionKey(userPubkey);
+    const success = await this.#valkeyClient.setWithTTL(
+      key,
+      csv,
+      SESSION_TTL_SECONDS,
+    );
+    if (!success) {
+      throw new SessionError(
+        "Failed to set session data and/or TTL to database",
+      );
+    }
+
+    return session;
   }
 
   /**
@@ -131,63 +131,46 @@ export class SessionManager {
    *
    * @param userPubkey - The user's public key
    * @returns The session state if found, null otherwise
-   *
-   * @throws {SessionError} If retrieval fails
    */
   async getSession(
     userPubkey: string,
-  ): Promise<z.infer<typeof SessionState> | null> {
-    try {
-      const key = this.getSessionKey(userPubkey);
-      const client = this.valkeyClient.getClient();
+  ): Promise<SessionState | null> {
+    const key = this.buildSessionKey(userPubkey);
 
-      const csv = await client.get(key);
-
-      if (!csv) {
-        return null;
-      }
-
-      // Deserialize from CSV
-      const session = sessionModelToCsv.encode(csv);
-
-      return session;
-    } catch (error) {
-      throw new SessionError("Failed to retrieve session", { cause: error });
+    const csv = await this.#valkeyClient.getString(key);
+    if (!csv) {
+      return null;
     }
+
+    // Deserialize from CSV
+    return sessionModelToCsv.encode(csv);
   }
 
   /**
-   * Updates an existing session in Valkey.
-   *
-   * Preserves the remaining TTL on the session key.
+   * Updates data for an existing session in Valkey while retaining the session's TTL.
    *
    * @param session - The updated session state
    *
-   * @throws {SessionError} If update fails
+   * @throws {SessionError} If the update fails
    */
-  async updateSession(session: z.infer<typeof SessionState>): Promise<void> {
-    try {
-      const key = this.getSessionKey(session.userPubkey);
-      const client = this.valkeyClient.getClient();
+  async updateSession(session: SessionState): Promise<void> {
+    const key = this.buildSessionKey(session.userPubkey);
 
-      // Get remaining TTL
-      const ttl = await client.ttl(key);
+    // Get current TTL
+    const ttl = await this.#valkeyClient.ttl(key);
+    if (!ttl || ttl <= 0) {
+      throw new SessionError("Session no longer exists or has expired");
+    }
 
-      if (ttl <= 0) {
-        throw new SessionError("Session no longer exists or has expired");
-      }
+    // Serialize to CSV
+    const csv = sessionModelToCsv.decode(session);
 
-      // Serialize to CSV
-      const csv = sessionModelToCsv.decode(session);
-
-      // Update with preserved TTL
-      await client.set(key, csv);
-      await client.expire(key, ttl);
-    } catch (error) {
-      if (error instanceof SessionError) {
-        throw error;
-      }
-      throw new SessionError("Failed to update session", { cause: error });
+    // Update with preserved TTL
+    const success = await this.#valkeyClient.setWithTTL(key, csv, ttl);
+    if (!success) {
+      throw new SessionError(
+        "Failed to set session data and/or TTL to database",
+      );
     }
   }
 
@@ -196,43 +179,35 @@ export class SessionManager {
    *
    * @param userPubkey - The user's public key
    *
-   * @throws {SessionError} If deletion fails
+   * @throws {SessionError} If the deletion fails
    */
   async deleteSession(userPubkey: string): Promise<void> {
-    try {
-      const key = this.getSessionKey(userPubkey);
-      const client = this.valkeyClient.getClient();
-
-      await client.del([key]);
-    } catch (error) {
-      throw new SessionError("Failed to delete session", { cause: error });
+    const key = this.buildSessionKey(userPubkey);
+    const success = await this.#valkeyClient.delete(key);
+    if (!success) {
+      throw new SessionError("Failed to delete session");
     }
   }
 
   /**
-   * Validates a session by user public key.
-   *
-   * Checks that the session exists, can be parsed, and hasn't expired.
+   * Validates a session by user public key. Checks that the session for the given public key
+   * exists, can be parsed, and hasn't expired.
    *
    * @param userPubkey - The user's public key
    * @returns Validation result with session if valid
    */
   async validateSession(userPubkey: string): Promise<SessionValidation> {
-    try {
-      const session = await this.getSession(userPubkey);
+    const session = await this.getSession(userPubkey);
 
-      if (!session) {
-        return { valid: false, reason: "not_found" };
-      }
-
-      if (!isSessionValid(session)) {
-        return { valid: false, reason: "expired" };
-      }
-
-      return { valid: true, session };
-    } catch {
-      return { valid: false, reason: "invalid_format" };
+    if (!session) {
+      return { valid: false, reason: "not_found" };
     }
+
+    if (!isSessionValid(session)) {
+      return { valid: false, reason: "expired" };
+    }
+
+    return { valid: true, session };
   }
 
   /**
@@ -275,88 +250,31 @@ export class SessionManager {
   }
 
   /**
-   * Gets all active sessions (for administrative purposes).
-   *
-   * Note: This is an expensive operation and should be used sparingly.
-   *
-   * @returns Array of all active sessions
-   */
-  async getAllSessions(): Promise<z.infer<typeof SessionState>[]> {
-    try {
-      const client = this.valkeyClient.getClient();
-
-      // Scan for all session keys
-      const pattern = `${SESSION_KEY_PREFIX}*`;
-      const keys: string[] = [];
-
-      // AI-NOTE: SCAN is not directly supported by GLIDE in the same way.
-      // Using KEYS for simplicity, but this should be replaced with SCAN
-      // for production use to avoid blocking the database.
-      const allKeys = await client.keys(pattern);
-      keys.push(...allKeys);
-
-      // Retrieve all sessions
-      const sessions: z.infer<typeof SessionState>[] = [];
-
-      for (const key of keys) {
-        try {
-          const csv = await client.get(key);
-          if (csv) {
-            const session = sessionModelToCsv.encode(csv);
-            sessions.push(session);
-          }
-        } catch {
-          // Skip invalid sessions
-        }
-      }
-
-      return sessions;
-    } catch (error) {
-      throw new SessionError("Failed to retrieve sessions", { cause: error });
-    }
-  }
-
-  /**
    * Checks if a session exists for a user.
    *
    * @param userPubkey - The user's public key
    * @returns True if session exists, false otherwise
    */
-  async sessionExists(userPubkey: string): Promise<boolean> {
-    try {
-      const key = this.getSessionKey(userPubkey);
-      const client = this.valkeyClient.getClient();
-
-      const exists = await client.exists([key]);
-      return exists > 0;
-    } catch (error) {
-      throw new SessionError("Failed to check session existence", {
-        cause: error,
-      });
-    }
+  sessionExists(userPubkey: string): Promise<boolean> {
+    const key = this.buildSessionKey(userPubkey);
+    return this.#valkeyClient.hasKey(key);
   }
 
   /**
    * Gets the remaining TTL for a session in seconds.
    *
    * @param userPubkey - The user's public key
-   * @returns TTL in seconds, or -1 if no TTL, or -2 if key doesn't exist
+   * @returns TTL in seconds, or null if key doesn't exist or has no expiry.
    */
-  async getSessionTTL(userPubkey: string): Promise<number> {
-    try {
-      const key = this.getSessionKey(userPubkey);
-      const client = this.valkeyClient.getClient();
-
-      return await client.ttl(key);
-    } catch (error) {
-      throw new SessionError("Failed to get session TTL", { cause: error });
-    }
+  getSessionTTL(userPubkey: string): Promise<number | null> {
+    const key = this.buildSessionKey(userPubkey);
+    return this.#valkeyClient.ttl(key);
   }
 
   /**
    * Gets the Valkey key for a session.
    */
-  private getSessionKey(userPubkey: string): string {
+  private buildSessionKey(userPubkey: string): string {
     return `${SESSION_KEY_PREFIX}${userPubkey}`;
   }
 }
