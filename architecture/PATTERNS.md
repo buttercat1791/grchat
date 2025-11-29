@@ -77,11 +77,11 @@ Input validation occurs in the service layer:
 
 ## Schema Validation
 
-[Zod 4](https://zod.dev/) is the preferred tool for defining and validating data schemas. Zod schemas may be used to define and validate:
+[Zod 4](https://zod.dev/) is the preferred tool for defining and validating data schemas. Zod schemas should be used to define and validate data at grchat's application boundaries, including:
 
 - Database active records
-- DTOs
-- Interfaces between components
+- Nostr message contracts
+- Interfaces between components and modules
 
 Zod schemas and codecs are defined in [schemas/](./schemas/).
 

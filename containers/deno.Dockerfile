@@ -13,6 +13,7 @@ RUN apt update && \
 RUN wget https://www.vaughnnugent.com/public/resources/software/builds/noscrypt/711a22c569d1ae06ae2f454ece57ad7a2152aaa3/noscrypt/noscrypt-src.tgz && \
     tar -xzf noscrypt-src.tgz && \
     task && \
+    task -- -DNC_ENABLE_UTILS=ON && \
     task install
 
 # --- Deno Runtime Stage ---
@@ -25,6 +26,7 @@ USER deno
 COPY --from=noscrypt /usr/local/lib/libnoscrypt.so /usr/local/lib/libnoscrypt.so
 COPY --from=noscrypt /usr/local/lib/libnoscrypt_static.a /usr/local/lib/libnoscrypt_static.a
 COPY --from=noscrypt /usr/local/include/noscrypt/noscrypt.h /usr/local/include/noscrypt/noscrypt.h
+COPY --from=noscrypt /usr/local/include/noscrypt/noscryptutil.h /usr/local/include/noscrypt/noscryptutil.h
 COPY --from=noscrypt /usr/local/include/noscrypt/platform.h /usr/local/include/noscrypt/platform.h
 
 COPY . .

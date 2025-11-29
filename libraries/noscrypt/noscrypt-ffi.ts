@@ -1,8 +1,23 @@
+import { bytesToUtf8, utf8ToBytes } from "../../schemas/codecs.ts";
+
 const NC_BIN_ABS_PATH = "/usr/local/lib/libnoscrypt.so";
 const NC_SEC_KEY_SIZE = 0x20;
 const NC_PUB_KEY_SIZE = 0x20;
 const NC_SIGNATURE_SIZE = 0x40;
 const NC_ENTROPY_SIZE = 0x20;
+
+// NIP-44 constants
+const NC_CONV_KEY_SIZE = 0x20;
+const NC_NIP44_IV_SIZE = 0x20;
+const NC_ENC_VERSION_NIP44 = 0x2c;
+
+// NCUtilCipher flags
+const NC_UTIL_CIPHER_MODE_ENCRYPT = 0x00;
+const NC_UTIL_CIPHER_MODE_DECRYPT = 0x01;
+const NC_UTIL_CIPHER_ZERO_ON_FREE = 0x02;
+
+// NCEncryptionArgs property IDs
+const NC_ENC_SET_IV = 0x02;
 
 interface Keypair {
   secretKey: string;
@@ -62,6 +77,35 @@ class Noscrypt {
     };
     NCVerifyData: {
       parameters: ["buffer", "buffer", "buffer", "u32", "buffer"];
+      result: "i64";
+    };
+    // NCUtilCipher high-level encryption API
+    NCUtilCipherAlloc: {
+      parameters: ["u32", "u32"];
+      result: "pointer";
+    };
+    NCUtilCipherFree: {
+      parameters: ["pointer"];
+      result: "void";
+    };
+    NCUtilCipherInit: {
+      parameters: ["pointer", "buffer", "u32"];
+      result: "i64";
+    };
+    NCUtilCipherUpdate: {
+      parameters: ["pointer", "buffer", "buffer", "buffer"];
+      result: "i64";
+    };
+    NCUtilCipherGetOutputSize: {
+      parameters: ["pointer"];
+      result: "i64";
+    };
+    NCUtilCipherReadOutput: {
+      parameters: ["pointer", "buffer", "u32"];
+      result: "i64";
+    };
+    NCUtilCipherSetProperty: {
+      parameters: ["pointer", "u32", "buffer", "u32"];
       result: "i64";
     };
   }>;
@@ -127,6 +171,60 @@ class Noscrypt {
           "buffer", // const uint8_t* data
           "u32", // const uint32_t dataSize
           "buffer", // const uint8_t sig64[64]
+        ],
+        result: "i64",
+      },
+      // NCUtilCipher high-level encryption API
+      NCUtilCipherAlloc: {
+        parameters: [
+          "u32", // uint32_t encVersion
+          "u32", // uint32_t flags
+        ],
+        result: "pointer",
+      },
+      NCUtilCipherFree: {
+        parameters: [
+          "pointer", // NCUtilCipherContext* encCtx
+        ],
+        result: "void",
+      },
+      NCUtilCipherInit: {
+        parameters: [
+          "pointer", // NCUtilCipherContext* encCtx
+          "buffer", // const uint8_t* inputData
+          "u32", // uint32_t inputSize
+        ],
+        result: "i64",
+      },
+      NCUtilCipherUpdate: {
+        parameters: [
+          "pointer", // NCUtilCipherContext* encCtx
+          "buffer", // const NCContext* libContext
+          "buffer", // const NCSecretKey* sk
+          "buffer", // const NCPublicKey* pk
+        ],
+        result: "i64",
+      },
+      NCUtilCipherGetOutputSize: {
+        parameters: [
+          "pointer", // const NCUtilCipherContext* encCtx
+        ],
+        result: "i64",
+      },
+      NCUtilCipherReadOutput: {
+        parameters: [
+          "pointer", // const NCUtilCipherContext* encCtx
+          "buffer", // uint8_t* output
+          "u32", // uint32_t outputSize
+        ],
+        result: "i64",
+      },
+      NCUtilCipherSetProperty: {
+        parameters: [
+          "pointer", // NCUtilCipherContext* ctx
+          "u32", // uint32_t property
+          "buffer", // uint8_t* value
+          "u32", // uint32_t valueLen
         ],
         result: "i64",
       },
@@ -382,6 +480,200 @@ class Noscrypt {
     const publicKey = this.getPublicKey(secretKey);
 
     return { secretKey, publicKey };
+  }
+
+  /**
+   * Encrypts plaintext using NIP-44 encryption.
+   *
+   * @param secretKey - A 32-byte hex-encoded secret key of the sender
+   * @param publicKey - A 32-byte hex-encoded public key of the recipient
+   * @param plaintext - The plaintext string to encrypt
+   * @returns The encrypted ciphertext as a base64-encoded string (NIP-44 format)
+   *
+   * @throws {Error} If encryption fails
+   */
+  encryptNip44(
+    secretKey: string,
+    publicKey: string,
+    plaintext: string,
+  ): string {
+    this.assertNotClosed();
+
+    const skBuf = hexToUint8Array(secretKey);
+    if (skBuf.length !== NC_SEC_KEY_SIZE) {
+      throw new Error("Secret key must be a 32-byte hex encoded string.");
+    }
+
+    const pkBuf = hexToUint8Array(publicKey);
+    if (pkBuf.length !== NC_PUB_KEY_SIZE) {
+      throw new Error("Public key must be a 32-byte hex encoded string.");
+    }
+
+    // Encode plaintext to UTF-8 bytes
+    const plaintextBuf = utf8ToBytes.decode(plaintext);
+
+    // Allocate cipher context for NIP-44 encryption
+    const cipherCtx = this.lib.symbols.NCUtilCipherAlloc(
+      NC_ENC_VERSION_NIP44,
+      NC_UTIL_CIPHER_MODE_ENCRYPT | NC_UTIL_CIPHER_ZERO_ON_FREE,
+    );
+    if (cipherCtx === null) {
+      throw new Error("[noscrypt] failed to allocate cipher context");
+    }
+
+    try {
+      // Initialize with plaintext data
+      let result = this.lib.symbols.NCUtilCipherInit(
+        cipherCtx,
+        plaintextBuf,
+        plaintextBuf.length,
+      );
+      if (result < 0) {
+        throw new Error(`[noscrypt] failed to initialize cipher: ${result}`);
+      }
+
+      // Generate and set random nonce (required for NIP-44 encryption)
+      const nonceBuf = new Uint8Array(NC_NIP44_IV_SIZE);
+      crypto.getRandomValues(nonceBuf);
+
+      result = this.lib.symbols.NCUtilCipherSetProperty(
+        cipherCtx,
+        NC_ENC_SET_IV,
+        nonceBuf,
+        NC_NIP44_IV_SIZE,
+      );
+      if (result < 0) {
+        throw new Error(`[noscrypt] failed to set nonce: ${result}`);
+      }
+
+      this.#reInitContext();
+
+      // Perform encryption
+      result = this.lib.symbols.NCUtilCipherUpdate(
+        cipherCtx,
+        this.context,
+        skBuf,
+        pkBuf,
+      );
+      if (result < 0) {
+        throw new Error(`[noscrypt] encryption failed: ${result}`);
+      }
+
+      // Get output size
+      const outputSize = this.lib.symbols.NCUtilCipherGetOutputSize(cipherCtx);
+      if (outputSize < 0) {
+        throw new Error(`[noscrypt] failed to get output size: ${outputSize}`);
+      }
+
+      // Read encrypted output
+      const outputBuf = new Uint8Array(Number(outputSize));
+      result = this.lib.symbols.NCUtilCipherReadOutput(
+        cipherCtx,
+        outputBuf,
+        outputBuf.length,
+      );
+      if (result < 0) {
+        throw new Error(`[noscrypt] failed to read output: ${result}`);
+      }
+
+      // Return as base64 (use String.fromCharCode for binary data, not UTF-8 decoder)
+      return btoa(String.fromCharCode(...outputBuf));
+    } finally {
+      // Always free the cipher context
+      this.lib.symbols.NCUtilCipherFree(cipherCtx);
+    }
+  }
+
+  /**
+   * Decrypts NIP-44 encrypted ciphertext.
+   *
+   * @param secretKey - A 32-byte hex-encoded secret key of the recipient
+   * @param publicKey - A 32-byte hex-encoded public key of the sender
+   * @param ciphertext - The base64-encoded NIP-44 ciphertext
+   * @returns The decrypted plaintext string
+   *
+   * @throws {Error} If decryption or MAC verification fails
+   */
+  decryptNip44(
+    secretKey: string,
+    publicKey: string,
+    ciphertext: string,
+  ): string {
+    this.assertNotClosed();
+
+    const skBuf = hexToUint8Array(secretKey);
+    if (skBuf.length !== NC_SEC_KEY_SIZE) {
+      throw new Error("Secret key must be a 32-byte hex encoded string.");
+    }
+
+    const pkBuf = hexToUint8Array(publicKey);
+    if (pkBuf.length !== NC_PUB_KEY_SIZE) {
+      throw new Error("Public key must be a 32-byte hex encoded string.");
+    }
+
+    // Decode base64 payload
+    const payloadBuf = Uint8Array.from(
+      atob(ciphertext),
+      (c) => c.charCodeAt(0),
+    );
+
+    // Allocate cipher context for NIP-44 decryption
+    const cipherCtx = this.lib.symbols.NCUtilCipherAlloc(
+      NC_ENC_VERSION_NIP44,
+      NC_UTIL_CIPHER_MODE_DECRYPT | NC_UTIL_CIPHER_ZERO_ON_FREE,
+    );
+
+    if (cipherCtx === null) {
+      throw new Error("[noscrypt] failed to allocate cipher context");
+    }
+
+    try {
+      // Initialize with ciphertext data (full NIP-44 payload)
+      let result = this.lib.symbols.NCUtilCipherInit(
+        cipherCtx,
+        payloadBuf,
+        payloadBuf.length,
+      );
+      if (result < 0) {
+        throw new Error(`[noscrypt] failed to initialize cipher: ${result}`);
+      }
+
+      this.#reInitContext();
+
+      // Perform decryption (includes MAC verification)
+      result = this.lib.symbols.NCUtilCipherUpdate(
+        cipherCtx,
+        this.context,
+        skBuf,
+        pkBuf,
+      );
+      if (result < 0) {
+        throw new Error(`[noscrypt] decryption failed: ${result}`);
+      }
+
+      // Get output size
+      const outputSize = this.lib.symbols.NCUtilCipherGetOutputSize(cipherCtx);
+      if (outputSize < 0) {
+        throw new Error(`[noscrypt] failed to get output size: ${outputSize}`);
+      }
+
+      // Read decrypted output
+      const outputBuf = new Uint8Array(Number(outputSize));
+      result = this.lib.symbols.NCUtilCipherReadOutput(
+        cipherCtx,
+        outputBuf,
+        outputBuf.length,
+      );
+      if (result < 0) {
+        throw new Error(`[noscrypt] failed to read output: ${result}`);
+      }
+
+      // Decode UTF-8 plaintext
+      return bytesToUtf8.decode(outputBuf);
+    } finally {
+      // Always free the cipher context
+      this.lib.symbols.NCUtilCipherFree(cipherCtx);
+    }
   }
 
   /**

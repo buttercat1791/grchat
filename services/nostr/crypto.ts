@@ -1,5 +1,5 @@
 /**
- * Cryptography Service
+ * Cryptographic Operations for Nostr Events
  *
  * Provides cryptographic operations for Nostr events, wrapping the noscrypt FFI
  * library with business logic for event signing, verification, and ID generation.
@@ -8,7 +8,16 @@
  */
 
 import { Noscrypt } from "@/libraries/noscrypt/noscrypt-ffi.ts";
-import { NEventID, NID, NostrEvent, NostrEventBase } from "@/schemas/nostr.ts";
+import {
+  type NEventId,
+  NEventIDSchema,
+  type NID,
+  NIDSchema,
+  type NostrEvent,
+  type NostrEventBase,
+  NostrEventBaseSchema,
+  NostrEventSchema,
+} from "@/schemas/nostr-events.ts";
 import {
   bytesToUtf8,
   eventToSignatureData,
@@ -35,10 +44,13 @@ export class CryptoError extends Error {
  * @throws {CryptoError} If ID computation fails
  */
 export async function computeEventId(
-  event: z.infer<typeof NostrEventBase>,
-): Promise<z.infer<typeof NEventID>> {
+  event: NostrEventBase,
+): Promise<NEventId> {
+  // Precondition: validate event argument
+  const ev = NostrEventBaseSchema.parse(event);
+
   try {
-    const sigData = eventToSignatureData.decode(event);
+    const sigData = eventToSignatureData.decode(ev);
     const json = JSON.stringify(sigData);
     const encoded = utf8ToBytes.decode(json);
 
@@ -49,7 +61,7 @@ export async function computeEventId(
     // Convert to lowercase hex string
     const hex = bytesToUtf8.decode(hashArr);
 
-    return hex;
+    return NEventIDSchema.parse(hex);
   } catch (error) {
     throw new CryptoError("Failed to compute event ID", { cause: error });
   }
@@ -65,23 +77,29 @@ export async function computeEventId(
  * @throws {CryptoError} If signing fails
  */
 export async function signEvent(
-  event: z.infer<typeof NostrEventBase>,
-  secretKey: z.infer<typeof NID>,
-): Promise<z.infer<typeof NostrEvent>> {
+  event: NostrEventBase,
+  secretKey: NID,
+): Promise<NostrEvent> {
+  // Preconditions: validate arguments
+  const ev = NostrEventBaseSchema.parse(event);
+  const secKey = NIDSchema.parse(secretKey);
+
   try {
     // Compute the event ID
-    const id = await computeEventId(event);
+    const id = await computeEventId(ev);
 
     // Sign the event ID with noscrypt
     using noscrypt = new Noscrypt();
-    const sig = noscrypt.signData(secretKey, id);
+    const sig = noscrypt.signData(secKey, id);
 
     // Return the complete signed event
-    return {
-      ...event,
+    const signedEvent = NostrEventSchema.parse({
+      ...ev,
       id,
       sig,
-    };
+    });
+
+    return signedEvent;
   } catch (error) {
     if (error instanceof CryptoError) {
       throw error;
@@ -99,26 +117,33 @@ export async function signEvent(
  * @throws {CryptoError} If verification process fails (not including invalid signatures)
  */
 export async function verifyEventSignature(
-  event: z.infer<typeof NostrEvent>,
+  event: NostrEvent,
 ): Promise<boolean> {
+  // Precondition: validate event argument
+  const ev = NostrEventSchema.parse(event);
+
   try {
     // Recompute the event ID
     const computedId = await computeEventId({
-      pubkey: event.pubkey,
-      created_at: event.created_at,
-      kind: event.kind,
-      tags: event.tags,
-      content: event.content,
+      pubkey: ev.pubkey,
+      created_at: ev.created_at,
+      kind: ev.kind,
+      tags: ev.tags,
+      content: ev.content,
     });
 
     // Verify the ID matches
-    if (computedId !== event.id) {
+    if (computedId !== ev.id) {
       return false;
     }
 
     // Verify the signature using noscrypt
     using noscrypt = new Noscrypt();
-    return noscrypt.verifyData(event.pubkey, event.id, event.sig);
+    return noscrypt.verifyData(
+      ev.pubkey,
+      ev.id,
+      ev.sig,
+    );
   } catch (error) {
     throw new CryptoError("Failed to verify event signature", {
       cause: error,
@@ -134,10 +159,15 @@ export async function verifyEventSignature(
  *
  * @throws {CryptoError} If public key derivation fails
  */
-export function getPublicKey(secretKey: z.infer<typeof NID>): string {
+export function getPublicKey(secretKey: NID): string {
+  // Precondition: validate secret key argument
+  const secKey = NIDSchema.parse(secretKey);
+
   try {
     using noscrypt = new Noscrypt();
-    return noscrypt.getPublicKey(secretKey);
+    const publicKey = noscrypt.getPublicKey(secKey);
+
+    return NIDSchema.parse(publicKey);
   } catch (error) {
     throw new CryptoError("Failed to derive public key", { cause: error });
   }
@@ -151,10 +181,13 @@ export function getPublicKey(secretKey: z.infer<typeof NID>): string {
  *
  * @throws {CryptoError} If validation process fails
  */
-export function validateSecretKey(secretKey: z.infer<typeof NID>): boolean {
+export function validateSecretKey(secretKey: NID): boolean {
+  // Precondition: validate secret key argument
+  const secKey = NIDSchema.parse(secretKey);
+
   try {
     using noscrypt = new Noscrypt();
-    return noscrypt.validateSecretKey(secretKey);
+    return noscrypt.validateSecretKey(secKey);
   } catch (error) {
     throw new CryptoError("Failed to validate secret key", { cause: error });
   }
@@ -168,12 +201,19 @@ export function validateSecretKey(secretKey: z.infer<typeof NID>): boolean {
  * @throws {CryptoError} If keypair generation fails
  */
 export function generateKeypair(): {
-  secretKey: z.infer<typeof NID>;
-  publicKey: z.infer<typeof NID>;
+  secretKey: NID;
+  publicKey: NID;
 } {
   try {
     using noscrypt = new Noscrypt();
-    return noscrypt.generateKeypair();
+    const keypair = noscrypt.generateKeypair();
+
+    const keys = z.object({
+      secretKey: NIDSchema,
+      publicKey: NIDSchema,
+    }).parse(keypair);
+
+    return keys;
   } catch (error) {
     throw new CryptoError("Failed to generate keypair", { cause: error });
   }
