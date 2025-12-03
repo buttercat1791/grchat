@@ -11,7 +11,7 @@ import { ValkeyClient } from "./valkey-client.ts";
 import {
   buildSessionState,
   isSessionValid,
-  SessionState,
+  type SessionState,
   SessionStateSchema,
 } from "@/schemas/session.ts";
 import { sessionModelToCsv } from "@/schemas/codecs.ts";

@@ -92,6 +92,7 @@ export class KeepaliveService implements Disposable {
 
     try {
       // Create worker
+      // AI-NOTE: Using relative path here because @/ alias doesn't work in URL constructor
       this.worker = new Worker(
         new URL("../workers/keepalive-worker.ts", import.meta.url).href,
         { type: "module" },

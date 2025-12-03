@@ -50,7 +50,7 @@ The repository extends the standard Fresh layout described on its [getting start
   - Use PascalCase names for TypeScript classes.
   - Use camelCase names for TypeScript functions and variables.
   - Use UPPER_SNAKE_CASE names for global TypeScript constants.
-  - Use `#`-prefixed names for private fields and members in TypeScript classes.
+  - Use ES2022 `#`-prefixed names for private fields and members in TypeScript classes.
 - Styling:
   - Prefer TailwindCSS utilities and DaisyUI components.
   - Define custom Tailwind classes in [styles.css](./assets/styles.css).
@@ -83,6 +83,10 @@ Use the `AI-` comment format to communicate and clarify the intent of the code b
 - Before interacting with code written in a language other than TypeScript or JavaScript, consult the project's [FFI](./architecture/FFI.md) documentation.
 - When it is necessary to write a summary of development work, or to write notes on a particular implementation, place these notes and summaries in Markdown files in an appropriate subdirectory under [notes/](./notes/).
 - Always use context7 to support tasks involving code generation, setup, or configuration; or to access library/API documentation. Automatically use the Context7 MCP tools to resolve library id and get library docs without explicitly being prompted to do so.
+- Always use Zod to define and validate interfaces between classes, modules, and components within the project, and with external APIs.
+- Always use Fresh [file routing](https://fresh.deno.dev/docs/concepts/file-routing) when writing new UI routes and components.
+- Avoid import path patterns beginning with `../`. Instead use `@/` and the route from the project root.
+- Prefer UUIDv7 for unique identifiers. UUIDv7 identifiers are sortable by time of generation. Use the `@std/uuid/unstable-v7` library from JSR.
 
 ### Unit Testing Guidelines
 

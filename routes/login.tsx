@@ -1,6 +1,6 @@
 import { Head } from "fresh/runtime";
-import { define } from "../utils.ts";
-import LoginForm from "../islands/LoginForm.tsx";
+import { define } from "@/utils.ts";
+import LoginForm from "@/islands/LoginForm.tsx";
 
 export default define.page(function Login() {
   return (

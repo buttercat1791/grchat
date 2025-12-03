@@ -1,30 +1,35 @@
 import { App, staticFiles } from "fresh";
-import { define, type State } from "./utils.ts";
+import { AppServices } from "./services/app-services.ts";
 
-export const app = new App<State>();
+export const app = new App();
 
 app.use(staticFiles());
 
-// Pass a shared value from a middleware
-app.use(async (ctx) => {
-  ctx.state.shared = "hello";
-  return await ctx.next();
-});
-
-// this is the same as the /api/:name route defined via a file. feel free to delete this!
-app.get("/api2/:name", (ctx) => {
-  const name = ctx.params.name;
-  return new Response(
-    `Hello, ${name.charAt(0).toUpperCase() + name.slice(1)}!`,
-  );
-});
-
-// this can also be defined via a file. feel free to delete this!
-const exampleLoggerMiddleware = define.middleware((ctx) => {
-  console.log(`${ctx.req.method} ${ctx.req.url}`);
-  return ctx.next();
-});
-app.use(exampleLoggerMiddleware);
-
 // Include file-system based routes here
 app.fsRoutes();
+
+// TODO: Read application config from YAML and pass config values to services as relevant.
+
+// Initialize application services on startup
+await AppServices.instance.initialize({
+  valkeyHost: Deno.env.get("VALKEY_HOST") ?? "localhost",
+  valkeyPort: parseInt(Deno.env.get("VALKEY_PORT") ?? "6379", 10),
+  relayPoolConfig: {
+    connectionTimeout: 10000,
+    idleTimeout: 300000,
+  },
+  onSessionFailed: (_userPubkey, _reason) => {
+    // AI-NOTE: In production, consider notifying the user via WebSocket or other mechanism
+  },
+});
+
+// Handle graceful shutdown
+Deno.addSignalListener("SIGINT", () => {
+  AppServices.instance.shutdown();
+  Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", () => {
+  AppServices.instance.shutdown();
+  Deno.exit(0);
+});

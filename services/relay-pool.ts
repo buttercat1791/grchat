@@ -11,7 +11,17 @@ import {
   NostrFilterSchema,
   type RelayMessage,
   RelayMessageSchema,
-} from "../schemas/nostr-messages.ts";
+} from "@/schemas/nostr-messages.ts";
+
+/**
+ * Zod schema for relay pool configuration.
+ */
+export const RelayPoolConfigSchema = z.object({
+  maxConnectionsPerRelay: z.number().optional(),
+  connectionTimeout: z.number().optional(),
+  idleTimeout: z.number().optional(),
+});
+export type RelayPoolConfig = z.infer<typeof RelayPoolConfigSchema>;
 
 /**
  * Error thrown when relay operations fail.
@@ -43,18 +53,6 @@ interface RelayConnection {
   subscriptions: Map<string, SubscriptionCallback>;
   messageHandlers: Set<MessageHandler>;
   lastActivity: number;
-}
-
-/**
- * Configuration options for the relay pool.
- */
-interface RelayPoolConfig {
-  /** Maximum number of connections per relay URL */
-  maxConnectionsPerRelay?: number;
-  /** Connection timeout in milliseconds */
-  connectionTimeout?: number;
-  /** Idle timeout before closing connection in milliseconds */
-  idleTimeout?: number;
 }
 
 const DEFAULT_CONFIG: Required<RelayPoolConfig> = {

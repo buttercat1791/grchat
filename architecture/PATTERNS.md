@@ -45,6 +45,18 @@ Grchat exposes a WebSocket API surface that implements [NIP-01](https://github.c
 - Grchat **does not use** external relays by default.
 - All message data is stored exclusively in the local Valkey instance.
 
+## Client Backend Application
+
+Grchat's client presentation layer is driven by server state. Interactive components update session state, retrieve data, and update the UI presentation by sending HTTP requests back to the server.
+
+- API route handlers are defined under the [`routes/api/`](./routes/api/) directory.
+- API paths are defined by the file structure under the [`routes/`](./routes) directory.
+- The API adheres strongly to REST level 3 as defined by the Richardson Maturity Model:
+  - Routes are resource-oriented, and each resource has a unique URI.
+  - HTTP verbs are used to denote actions on each resource.
+  - Hypermedia links and follow-on actions are given in responses to create a self-documenting API.
+- HATEOAS links adhere to the [Hypertext Application Language (HAL)](https://stateless.group/hal_specification.html) draft specification.
+
 ## Session State
 
 The user's session data is managed via the _Server Session State_ pattern. Session state is serialized in CSV format and persisted to the Valkey database as strings. To keep reads and writes on the Valkey database fast, session state size should be minimal. Sessions are described in [SESSIONS.md](./SESSIONS.md).

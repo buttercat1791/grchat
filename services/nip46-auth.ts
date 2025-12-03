@@ -94,11 +94,11 @@ const AppMetadataSchema = z.object({
 export type AppMetadata = z.infer<typeof AppMetadataSchema>;
 
 /**
- * Zod schema for handshake result.
+ * Zod schema for handshake result. * Composed of smaller schemas for better reusability and type safety.
  */
-const HandshakeResultSchema = z.object({
+export const HandshakeResultSchema = z.object({
   /** The user's actual public key (identity) */
-  userPubkey: z.string(),
+  userPubkey: NIDSchema,
   /** The complete connection state */
   connection: Nip46ConnectionSchema,
 });

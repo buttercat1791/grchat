@@ -1,4 +1,4 @@
-import { bytesToUtf8, utf8ToBytes } from "../../schemas/codecs.ts";
+import { bytesToUtf8, utf8ToBytes } from "@/schemas/codecs.ts";
 
 const NC_BIN_ABS_PATH = "/usr/local/lib/libnoscrypt.so";
 const NC_SEC_KEY_SIZE = 0x20;
@@ -7,7 +7,6 @@ const NC_SIGNATURE_SIZE = 0x40;
 const NC_ENTROPY_SIZE = 0x20;
 
 // NIP-44 constants
-const NC_CONV_KEY_SIZE = 0x20;
 const NC_NIP44_IV_SIZE = 0x20;
 const NC_ENC_VERSION_NIP44 = 0x2c;
 
