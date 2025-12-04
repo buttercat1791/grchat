@@ -76,7 +76,7 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 #### 2.1 Authentication Services
 
-- [ ] **NIP-46 Remote Signing Service** (`services/nip46-auth.ts`)
+- [x] **NIP-46 Remote Signing Service** (`services/nip46-auth.ts`)
   - Adhere to the NIP-46 specification for remote signers
   - Initiate handshake from grchat by providing a `nostrconnect://` URL to the caller
   - Respond to handshake initiated by signer by accepting a `bunker://` URL from the caller
@@ -84,7 +84,7 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
   - Implement request/response handling for remote signer communication
   - Add timeout handling for handshake operations
 
-- [ ] **Session Management Service** (`services/session-manager.ts`)
+- [x] **Session Management Service** (`services/session-manager.ts`)
   - Begin a session after a successful NIP-46 handshake by writing the session model to Valkey
   - Retrieve session state from Valkey via the user's public key
   - When a user begins a transaction, check that user's session expiration
@@ -92,7 +92,7 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
   - Delete sessions from Valkey on logout or expiration
   - Track sessions across client devices by user public key
 
-- [ ] **Keepalive Service** (`services/keepalive.ts`)
+- [x] **Keepalive Service** (`services/keepalive.ts`)
   - Ping connected remote signers at a 60-second interval while the session is not expired
   - Use NIP-46 ping messages
   - Receive and verify NIP-46 pong messages from remote signers
@@ -216,14 +216,14 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 #### 4.2 Authentication UI
 
-- [ ] **Login Component** (`components/Login.tsx`)
+- [x] **Login Component** (`components/Login.tsx`)
   - Display QR code for `nostrconnect://` URL
   - Display copyable `nostrconnect://` string
   - Provide input field for `bunker://` URL
   - Show authentication status feedback
   - Handle authentication errors
 
-- [ ] **Login Island** (`islands/LoginIsland.tsx`)
+- [x] **Login Island** (`islands/LoginIsland.tsx`)
   - Implement QR code generation (client-side)
   - Implement clipboard copy functionality
   - Implement `bunker://` URL submission
