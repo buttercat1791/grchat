@@ -5,8 +5,8 @@
  */
 
 import z from "zod";
-import { NostrEventBaseSchema } from "./nostr-events.ts";
-import { SessionStateSchema } from "./session.ts";
+import { NostrEventBaseSchema } from "@/shared/nostr/events-schema.ts";
+import { SessionStateSchema } from "@/shared/session-schema.ts";
 
 export const utf8ToBytes = z.codec(z.string(), z.instanceof(Uint8Array), {
   decode: (str) => new TextEncoder().encode(str),

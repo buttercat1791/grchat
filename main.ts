@@ -1,5 +1,5 @@
 import { App, staticFiles } from "fresh";
-import { AppServices } from "./services/app-services.ts";
+import { AppServices } from "@/shared/app-services.ts";
 
 export const app = new App();
 

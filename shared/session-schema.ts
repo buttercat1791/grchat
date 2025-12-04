@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { NIDSchema } from "./nostr-events.ts";
+import { NIDSchema } from "@/shared/nostr/events-schema.ts";
 
 /**
  * NIP-42 challenge state.

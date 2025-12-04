@@ -2,12 +2,16 @@
 
 ## Project Overview
 
-This plan outlines the phased implementation of Grchat, a full-stack Nostr-based threaded chat application. The implementation follows the Active Record pattern for domain logic, employs a service layer for business logic, and uses Fresh framework with Islands Architecture for the UI.
+This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
+threaded chat application. The implementation follows the Active Record pattern
+for domain logic, employs a service layer for business logic, and uses Fresh
+framework with Islands Architecture for the UI.
 
 ## Architecture Principles
 
 - **Domain Logic**: Active Record pattern using Nostr events (NIP-01, NIP-7D)
-- **Service Layer**: TypeScript modules mediating between presentation and domain logic
+- **Service Layer**: TypeScript modules mediating between presentation and
+  domain logic
 - **Web Presentation**: Fresh framework with Islands Architecture (MVC pattern)
 - **API Surface**: WebSocket-based Nostr relay implementing NIP-01 and NIP-7D
 - **Session Management**: Server Session State pattern with Valkey persistence
@@ -17,7 +21,8 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 ### Phase 1: Foundation & Infrastructure
 
-**Goal**: Establish the core infrastructure, database connectivity, and FFI wrappers.
+**Goal**: Establish the core infrastructure, database connectivity, and FFI
+wrappers.
 
 #### 1.1 Database Layer
 
@@ -27,7 +32,7 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
   - Set up volume mounts for data persistence
   - Define Docker networking between Valkey and Deno containers
 
-- [x] **Valkey Client Service** (`services/valkey-client.ts`)
+- [x] **Valkey Client Service** (`shared/valkey-client.ts`)
   - Initialize Valkey GLIDE client connection
   - Implement connection pooling and error handling
   - Create wrapper functions for core Valkey operations:
@@ -36,7 +41,8 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
     - Set operations (SADD, SISMEMBER, SMEMBERS)
     - Sorted set operations (ZADD, ZRANGE, ZREM)
     - TTL management (EXPIRE, TTL)
-  - Implement connection lifecycle management (connect, disconnect, health checks)
+  - Implement connection lifecycle management (connect, disconnect, health
+    checks)
 
 #### 1.2 Cryptography FFI Layer
 
@@ -57,7 +63,7 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 #### 1.3 Domain Models
 
-- [x] **Nostr Event Types** (`services/nostr-events.ts`)
+- [x] **Nostr Event Types** (`shared/nostr/events-schema.ts`)
   - Define Zod schemas for NIP-01 events
   - Define interfaces for NIP-7D chat messages (kind 11)
   - Define interfaces for NIP-7D threaded responses (kind 1111)
@@ -72,32 +78,40 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 ### Phase 2: Core Services
 
-**Goal**: Build the service layer implementing authentication, authorization, and data access.
+**Goal**: Build the service layer implementing authentication, authorization,
+and data access.
 
 #### 2.1 Authentication Services
 
-- [x] **NIP-46 Remote Signing Service** (`services/nip46-auth.ts`)
+- [x] **NIP-46 Remote Signing Service** (`features/auth/nip46-auth-service.ts`)
   - Adhere to the NIP-46 specification for remote signers
-  - Initiate handshake from grchat by providing a `nostrconnect://` URL to the caller
-  - Respond to handshake initiated by signer by accepting a `bunker://` URL from the caller
-  - Use the Nostr crypto service (`services/nostr/crypto.ts`) to generate a keypair grchat will use for its part of the handshake
+  - Initiate handshake from grchat by providing a `nostrconnect://` URL to the
+    caller
+  - Respond to handshake initiated by signer by accepting a `bunker://` URL from
+    the caller
+  - Use the Nostr crypto service (`shared/nostr/crypto.ts`) to generate a
+    keypair grchat will use for its part of the handshake
   - Implement request/response handling for remote signer communication
   - Add timeout handling for handshake operations
 
-- [x] **Session Management Service** (`services/session-manager.ts`)
-  - Begin a session after a successful NIP-46 handshake by writing the session model to Valkey
+- [x] **Session Management Service**
+      (`features/auth/session-manager-service.ts`)
+  - Begin a session after a successful NIP-46 handshake by writing the session
+    model to Valkey
   - Retrieve session state from Valkey via the user's public key
   - When a user begins a transaction, check that user's session expiration
   - Offer to renew expired sessions
   - Delete sessions from Valkey on logout or expiration
   - Track sessions across client devices by user public key
 
-- [x] **Keepalive Service** (`services/keepalive.ts`)
-  - Ping connected remote signers at a 60-second interval while the session is not expired
+- [x] **Keepalive Service** (`features/auth/keepalive-service.ts`)
+  - Ping connected remote signers at a 60-second interval while the session is
+    not expired
   - Use NIP-46 ping messages
   - Receive and verify NIP-46 pong messages from remote signers
   - Terminate a session and delete the state from Valkey on keepalive failure
-  - Implement the keepalive service as a long-running background process on the Deno server
+  - Implement the keepalive service as a long-running background process on the
+    Deno server
 
 #### 2.2 Authorization Services
 
@@ -306,7 +320,8 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 ### Phase 5: Session & Error Handling
 
-**Goal**: Implement robust session management and error handling throughout the application.
+**Goal**: Implement robust session management and error handling throughout the
+application.
 
 #### 5.1 Session UI Components
 
@@ -525,10 +540,12 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 
 ## Implementation Order Recommendations
 
-1. **Start with Phase 1**: Establish foundation before building higher-level features
+1. **Start with Phase 1**: Establish foundation before building higher-level
+   features
 2. **Phase 2 services are prerequisites** for both API and UI (Phases 3-4)
 3. **Phase 3 and Phase 4 can proceed in parallel** once Phase 2 is complete
-4. **Phase 5 integrates with Phases 3-4**: Implement alongside or immediately after
+4. **Phase 5 integrates with Phases 3-4**: Implement alongside or immediately
+   after
 5. **Phase 6 should be set up early**: Docker config enables local development
 6. **Phase 7 should be ongoing**: Write tests alongside implementation
 7. **Phase 8 is continuous**: Document as you build
@@ -536,9 +553,12 @@ This plan outlines the phased implementation of Grchat, a full-stack Nostr-based
 ## Critical Dependencies
 
 - **Valkey GLIDE client**: Verify compatibility with Deno
-- **Noscrypt library**: Must be compiled for target platform with FFI-compatible symbols
-- **Fresh framework**: Stay current with Fresh best practices for Islands Architecture
-- **NIP-46 remote signer**: Requires compatible signer application for testing (e.g., Amber, Alby)
+- **Noscrypt library**: Must be compiled for target platform with FFI-compatible
+  symbols
+- **Fresh framework**: Stay current with Fresh best practices for Islands
+  Architecture
+- **NIP-46 remote signer**: Requires compatible signer application for testing
+  (e.g., Amber, Alby)
 
 ## Risk Mitigation
 

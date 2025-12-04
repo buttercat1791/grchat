@@ -8,8 +8,11 @@
  * @see ../architecture/SESSIONS.md
  */
 
-import { Nip46Connection, Nip46Service } from "./nip46-auth.ts";
-import { SessionManager } from "./session-manager.ts";
+import {
+  Nip46Connection,
+  Nip46Service,
+} from "@/features/auth/nip46-auth-service.ts";
+import { SessionManager } from "@/features/auth/session-manager-service.ts";
 
 /**
  * Error thrown when keepalive operations fail.
@@ -94,7 +97,7 @@ export class KeepaliveService implements Disposable {
       // Create worker
       // AI-NOTE: Using relative path here because @/ alias doesn't work in URL constructor
       this.worker = new Worker(
-        new URL("../workers/keepalive-worker.ts", import.meta.url).href,
+        new URL("./keepalive-worker.ts", import.meta.url).href,
         { type: "module" },
       );
 

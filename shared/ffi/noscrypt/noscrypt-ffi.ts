@@ -1,4 +1,4 @@
-import { bytesToUtf8, utf8ToBytes } from "@/schemas/codecs.ts";
+import { bytesToUtf8, utf8ToBytes } from "@/shared/codecs.ts";
 
 const NC_BIN_ABS_PATH = "/usr/local/lib/libnoscrypt.so";
 const NC_SEC_KEY_SIZE = 0x20;

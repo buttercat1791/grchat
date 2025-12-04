@@ -9,16 +9,16 @@
  */
 
 import { z } from "zod";
-import { Noscrypt } from "@/libraries/noscrypt/noscrypt-ffi.ts";
+import { Noscrypt } from "@/shared/ffi/noscrypt/noscrypt-ffi.ts";
 import {
   NIDSchema,
   type NostrEvent,
   type NostrEventBase,
   NostrEventBaseSchema,
   NostrEventSchema,
-} from "@/schemas/nostr-events.ts";
-import { RelayPool } from "./relay-pool.ts";
-import { signEvent } from "./nostr/crypto.ts";
+} from "@/shared/nostr/events-schema.ts";
+import { RelayPool } from "@/shared/nostr/relay-pool.ts";
+import { signEvent } from "@/shared/nostr/crypto.ts";
 
 /**
  * Error thrown when NIP-46 operations fail.

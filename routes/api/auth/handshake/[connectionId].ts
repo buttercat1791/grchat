@@ -11,18 +11,18 @@
  */
 
 import { define } from "@/utils.ts";
-import { AppServices } from "@/services/app-services.ts";
+import { AppServices } from "@/shared/app-services.ts";
 import {
   getPendingConnection,
   removePendingConnection,
 } from "@/routes/api/auth/nostrconnect.ts";
-import type { PendingConnectionData } from "@/schemas/pending-connection.ts";
+import type { PendingConnectionData } from "@/features/auth/pending-connection-schema.ts";
 import {
   type HandshakeResult,
   HandshakeResultSchema,
   type Nip46Connection,
-} from "@/services/nip46-auth.ts";
-import { NID } from "../../../../schemas/nostr-events.ts";
+} from "@/features/auth/nip46-auth-service.ts";
+import { NID } from "@/shared/nostr/events-schema.ts";
 
 // AI-NOTE: Handshake timeout is 30 seconds as recommended in integration notes
 const HANDSHAKE_TIMEOUT = 30000;

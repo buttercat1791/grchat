@@ -7,16 +7,19 @@
  * @see ../architecture/SESSIONS.md
  */
 
-import { ValkeyClient } from "./valkey-client.ts";
+import { ValkeyClient } from "@/shared/valkey-client.ts";
 import {
   buildSessionState,
   isSessionValid,
   type SessionState,
   SessionStateSchema,
-} from "@/schemas/session.ts";
-import { sessionModelToCsv } from "@/schemas/codecs.ts";
-import { Nip46Connection, Nip46ConnectionSchema } from "./nip46-auth.ts";
-import { NIDSchema } from "@/schemas/nostr-events.ts";
+} from "@/shared/session-schema.ts";
+import { sessionModelToCsv } from "@/shared/codecs.ts";
+import {
+  Nip46Connection,
+  Nip46ConnectionSchema,
+} from "@/features/auth/nip46-auth-service.ts";
+import { NIDSchema } from "@/shared/nostr/events-schema.ts";
 
 /**
  * Error thrown when session operations fail.

@@ -1,5 +1,5 @@
 import z from "zod";
-import { NostrEventSchema } from "./nostr-events.ts";
+import { NostrEventSchema } from "@/shared/nostr/events-schema.ts";
 
 /**
  * NIP-01 filter for subscription requests.
