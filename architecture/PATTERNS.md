@@ -39,6 +39,10 @@ Application features are organized as _vertical slices_ of functionality.
   - The presentation layer
   - The domain model
   - Generalized data access patterns
+- Place each slice in its own directory within [features/](./features/). Avoid
+  separating layers within a slice; this is unnecessary.
+- Write an `AGENTS.md` file within each slice directory to provide instructions
+  and context relevant to that feature.
 
 ## Nostr Relay API
 
