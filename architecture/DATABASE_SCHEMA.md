@@ -83,3 +83,11 @@ Per [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) and
 - **Purpose:** Efficient retrieval of all responses to a given root message in
   chronological order
 - **Time to live:** 90 days
+
+## Data Persistence
+
+- **Persistence type:** RDB only
+- **Snapshot frequency:**
+  - Every 10 seconds if 100 keys change
+  - Every 60 seconds if 10 keys change
+  - Every 10 minutes if 1 key changes
