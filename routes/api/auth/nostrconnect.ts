@@ -23,13 +23,13 @@
  * }
  */
 
-import { AppServices } from "@/services/app-services.ts";
+import { AppServices } from "@/shared/app-services.ts";
 import { define } from "@/utils.ts";
 import { generate } from "@std/uuid/unstable-v7";
 import {
   type PendingConnectionData,
   PendingConnectionDataSchema,
-} from "@/schemas/pending-connection.ts";
+} from "@/features/auth/pending-connection-schema.ts";
 
 // AI-NOTE: Default relay URLs for NIP-46 communication
 // These can be overridden via environment variables in production

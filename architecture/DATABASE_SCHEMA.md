@@ -1,6 +1,8 @@
 # Database Schema
 
-Valkey is structured as a key-value store, so it does not have a schema as complex as would be found in a relational database; however, the key-value pairings used by grchat are defined here to set development standards.
+Valkey is structured as a key-value store, so it does not have a schema as
+complex as would be found in a relational database; however, the key-value
+pairings used by grchat are defined here to set development standards.
 
 ## Chat Message Events
 
@@ -11,15 +13,18 @@ Valkey is structured as a key-value store, so it does not have a schema as compl
 
 ### Hash Fields
 
-Per [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) and [NIP-7D](https://github.com/nostr-protocol/nips/blob/master/7D.md):
+Per [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) and
+[NIP-7D](https://github.com/nostr-protocol/nips/blob/master/7D.md):
 
-- `id` - Event ID (32-byte lowercase hex-encoded sha256 of the serialized event data)
+- `id` - Event ID (32-byte lowercase hex-encoded sha256 of the serialized event
+  data)
 - `pubkey` - Author's public key (32-byte lowercase hex-encoded public key)
 - `created_at` - Unix timestamp in seconds
 - `kind` - Event kind (integer, must be 11 for chat messages)
 - `tags` - JSON-serialized array of tags
 - `content` - Message content (arbitrary string)
-- `sig` - Event signature (64-byte lowercase hex of the signature of the sha256 hash of the serialized event data)
+- `sig` - Event signature (64-byte lowercase hex of the signature of the sha256
+  hash of the serialized event data)
 
 ## Threaded Response Events
 
@@ -30,15 +35,19 @@ Per [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) and [NIP-
 
 ### Hash Fields
 
-Per [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) and [NIP-7D](https://github.com/nostr-protocol/nips/blob/master/7D.md):
+Per [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) and
+[NIP-7D](https://github.com/nostr-protocol/nips/blob/master/7D.md):
 
-- `id` - Event ID (32-byte lowercase hex-encoded sha256 of the serialized event data)
+- `id` - Event ID (32-byte lowercase hex-encoded sha256 of the serialized event
+  data)
 - `pubkey` - Author's public key (32-byte lowercase hex-encoded public key)
 - `created_at` - Unix timestamp in seconds
 - `kind` - Event kind (integer, must be 1111 for threaded responses)
-- `tags` - JSON-serialized array of tags (must include `e` tag referencing root event)
+- `tags` - JSON-serialized array of tags (must include `e` tag referencing root
+  event)
 - `content` - Message content (arbitrary string)
-- `sig` - Event signature (64-byte lowercase hex of the signature of the sha256 hash of the serialized event data)
+- `sig` - Event signature (64-byte lowercase hex of the signature of the sha256
+  hash of the serialized event data)
 
 ## Session State
 
@@ -61,13 +70,24 @@ Per [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) and [NIP-
 - **Key structure:** `index.messages.timeline`
 - **Value type:** [sorted set](https://valkey.io/topics/sorted-sets/)
 - **Contents:** Chat message event IDs scored by their `created_at` timestamp
-- **Purpose:** Efficient chronological queries for displaying messages in the chat view
+- **Purpose:** Efficient chronological queries for displaying messages in the
+  chat view
 - **Time to live:** 90 days
 
 ### Thread Response Index
 
 - **Key structure:** `index.threads.<root-event-id>`
 - **Value type:** [sorted set](https://valkey.io/topics/sorted-sets/)
-- **Contents:** Threaded response event IDs scored by their `created_at` timestamp
-- **Purpose:** Efficient retrieval of all responses to a given root message in chronological order
+- **Contents:** Threaded response event IDs scored by their `created_at`
+  timestamp
+- **Purpose:** Efficient retrieval of all responses to a given root message in
+  chronological order
 - **Time to live:** 90 days
+
+## Data Persistence
+
+- **Persistence type:** RDB only
+- **Snapshot frequency:**
+  - Every 10 seconds if 100 keys change
+  - Every 60 seconds if 10 keys change
+  - Every 10 minutes if 1 key changes

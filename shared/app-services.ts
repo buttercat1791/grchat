@@ -5,15 +5,24 @@
  */
 
 import { z } from "zod";
-import { ValkeyClient } from "./valkey-client.ts";
+import { ValkeyClient } from "@/shared/valkey-client.ts";
 import {
   buildRelayPool,
   RelayPool,
   RelayPoolConfigSchema,
-} from "./relay-pool.ts";
-import { createNip46Service, Nip46Service } from "./nip46-auth.ts";
-import { createSessionManager, SessionManager } from "./session-manager.ts";
-import { createKeepaliveService, KeepaliveService } from "./keepalive.ts";
+} from "@/shared/nostr/relay-pool.ts";
+import {
+  createNip46Service,
+  Nip46Service,
+} from "@/features/auth/nip46-auth-service.ts";
+import {
+  createSessionManager,
+  SessionManager,
+} from "@/features/auth/session-manager-service.ts";
+import {
+  createKeepaliveService,
+  KeepaliveService,
+} from "@/features/auth/keepalive-service.ts";
 
 /**
  * Zod schema for application services configuration.

@@ -26,7 +26,7 @@
  */
 
 import { define } from "@/utils.ts";
-import { AppServices } from "@/services/app-services.ts";
+import { AppServices } from "@/shared/app-services.ts";
 
 export default define.handlers({
   async POST(ctx) {

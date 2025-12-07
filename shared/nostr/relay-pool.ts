@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { NostrEvent, NostrEventSchema } from "@/schemas/nostr-events.ts";
+import { NostrEvent, NostrEventSchema } from "@/shared/nostr/events-schema.ts";
 import {
   type ClientCloseMessage,
   type ClientEventMessage,
@@ -11,7 +11,7 @@ import {
   NostrFilterSchema,
   type RelayMessage,
   RelayMessageSchema,
-} from "@/schemas/nostr-messages.ts";
+} from "@/shared/nostr/messages-schema.ts";
 
 /**
  * Zod schema for relay pool configuration.

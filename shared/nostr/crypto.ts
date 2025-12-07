@@ -7,7 +7,7 @@
  * @see https://github.com/nostr-protocol/nips/blob/master/01.md
  */
 
-import { Noscrypt } from "@/libraries/noscrypt/noscrypt-ffi.ts";
+import { Noscrypt } from "@/shared/ffi/noscrypt/noscrypt-ffi.ts";
 import {
   type NEventId,
   NEventIDSchema,
@@ -17,12 +17,12 @@ import {
   type NostrEventBase,
   NostrEventBaseSchema,
   NostrEventSchema,
-} from "@/schemas/nostr-events.ts";
+} from "@/shared/nostr/events-schema.ts";
 import {
   bytesToUtf8,
   eventToSignatureData,
   utf8ToBytes,
-} from "@/schemas/codecs.ts";
+} from "@/shared/codecs.ts";
 import { z } from "zod";
 
 /**
