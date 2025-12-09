@@ -59,7 +59,7 @@ export class UserAccessControl {
 
       case "permissive":
         // Allow all except those on the deny list
-        return !this.#config.deny.includes(pubkey);
+        return !this.#config.deny?.includes(pubkey);
 
       case "open":
         // Allow everyone
@@ -97,7 +97,7 @@ export class UserAccessControl {
    * @returns Array of denied pubkeys
    */
   getDenyList(): string[] {
-    return [...this.#config.deny];
+    return [...this.#config.deny ?? []];
   }
 }
 
