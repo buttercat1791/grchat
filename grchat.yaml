@@ -1,0 +1,61 @@
+app:
+  name: grchat
+  base_url: "http://localhost:5173"
+
+auth:
+  relays:
+    # AI-NOTE: The default relay **must** be in the allow list.
+    default: "wss://theforest.nostr1.com"
+    allow:
+      - "wss://theforest.nostr1.com"
+      - "wss://thecitadel.nostr1.com"
+      - "wss://nostr.land"
+      - "wss://nostr.wine"
+      - "wss://nostr.sovbit.host"
+      - "wss://nostr21.com"
+      - "wss://orly-relay.imwald.eu"
+      - "wss://aggr.nostr.land"
+    deny:
+      - "wss://nos.lol"
+      - "wss://relay.damus.io"
+  # AI-NOTE: All timeouts are given in milliseconds
+  nip46_handshake:
+    default_timeout: 30000
+    handshake_expiration: 30000
+    polling_interval: 500 # Handshake completion polling interval
+  nip46_pending:
+    ttl: 300000 # Pending connection TTL
+    cleanup_interval: 60000 # Stale connection cleanup interval
+  keepalive_worker:
+    ping_interval: 60000 # Time between keepalive pings
+    max_failures: 3
+    ready_timeout: 5000 # Worker readiness wait time
+  session_manager:
+    valkey_prefix: "session." # Valkey key namespace
+    session_ttl: 86400000
+    challenge_ttl: 21600000 # NIP-42 challenge expiration
+
+database:
+  valkey:
+    host: "valkey"
+    port: 6379
+
+ffi:
+  noscrypt:
+    bin_path: "/usr/local/lib/libnoscrypt.so"
+
+shared:
+  nostr:
+    relay_pool:
+      connection_timeout: 10000
+      idle_timeout: 300000
+
+users:
+  # Mode can be "strict", "permissive", or "open"
+  # Strict: Only admit pubkeys on the allow list
+  # Permissive: Admit all npubs except those on the deny list
+  # Open: Admit all npubs
+  mode: "strict"
+  allow: # Only in strict mode
+    - "70122128273bdc07af9be7725fa5c4bc0fc146866bec38d44360dc4bc6cc18b9" # MichaelJ
+  deny: # Only in permissive mode

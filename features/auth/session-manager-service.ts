@@ -20,6 +20,7 @@ import {
   Nip46ConnectionSchema,
 } from "@/features/auth/nip46-auth-service.ts";
 import { NIDSchema } from "@/shared/nostr/events-schema.ts";
+import { getAuthConfig } from "@/features/config/config-provider.ts";
 
 /**
  * Error thrown when session operations fail.
@@ -45,13 +46,17 @@ export interface SessionValidation {
 
 /**
  * Session key prefix in Valkey.
+ * Loaded from configuration cache.
  */
-const SESSION_KEY_PREFIX = "session.";
+const SESSION_KEY_PREFIX = getAuthConfig().session_manager.valkey_prefix;
 
 /**
- * Session TTL in seconds (24 hours).
+ * Session TTL in seconds.
+ * Loaded from configuration cache (converted from ms to seconds).
  */
-const SESSION_TTL_SECONDS = 24 * 60 * 60;
+const SESSION_TTL_SECONDS = Math.floor(
+  getAuthConfig().session_manager.session_ttl / 1000,
+);
 
 /**
  * Session Management Service.
