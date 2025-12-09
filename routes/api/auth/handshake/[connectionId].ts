@@ -23,11 +23,12 @@ import {
   type Nip46Connection,
 } from "@/features/auth/nip46-auth-service.ts";
 import { NID } from "@/shared/nostr/events-schema.ts";
+import { getAuthConfig } from "@/features/config/config-provider.ts";
 
-// AI-NOTE: Handshake timeout is 30 seconds as recommended in integration notes
-const HANDSHAKE_TIMEOUT = 30000;
-// AI-NOTE: Check for handshake completion every 500ms
-const CHECK_INTERVAL = 500;
+// Configuration values are loaded synchronously from cache
+const authConfig = getAuthConfig();
+const HANDSHAKE_TIMEOUT = authConfig.nip46_handshake.handshake_expiration;
+const CHECK_INTERVAL = authConfig.nip46_handshake.polling_interval;
 
 /**
  * Helper to send SSE event through a ReadableStreamDefaultController

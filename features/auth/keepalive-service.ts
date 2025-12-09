@@ -13,6 +13,7 @@ import {
   Nip46Service,
 } from "@/features/auth/nip46-auth-service.ts";
 import { SessionManager } from "@/features/auth/session-manager-service.ts";
+import { getAuthConfig } from "@/features/config/config-provider.ts";
 
 /**
  * Error thrown when keepalive operations fail.
@@ -113,6 +114,16 @@ export class KeepaliveService implements Disposable {
       // Wait for worker to be ready
       await this.waitForWorkerReady();
 
+      // Send config to worker
+      const authConfig = getAuthConfig();
+      this.worker.postMessage({
+        type: "init",
+        payload: {
+          pingIntervalMs: authConfig.keepalive_worker.ping_interval,
+          maxConsecutiveFailures: authConfig.keepalive_worker.max_failures,
+        },
+      });
+
       // Start the keepalive loop
       this.worker.postMessage({ type: "start" });
       this.isRunning = true;
@@ -135,6 +146,9 @@ export class KeepaliveService implements Disposable {
    * Waits for the worker to signal readiness.
    */
   private waitForWorkerReady(): Promise<void> {
+    const authConfig = getAuthConfig();
+    const readyTimeout = authConfig.keepalive_worker.ready_timeout;
+
     return new Promise((resolve, reject) => {
       if (!this.worker) {
         reject(new KeepaliveError("Worker not created"));
@@ -143,7 +157,7 @@ export class KeepaliveService implements Disposable {
 
       const timeout = setTimeout(() => {
         reject(new KeepaliveError("Worker ready timeout"));
-      }, 5000);
+      }, readyTimeout);
 
       const originalHandler = this.worker.onmessage;
 

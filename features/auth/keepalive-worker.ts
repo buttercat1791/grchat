@@ -14,7 +14,13 @@
  * Message types sent from main thread to worker.
  */
 interface WorkerInboundMessage {
-  type: "start" | "stop" | "add_session" | "remove_session" | "ping_result";
+  type:
+    | "init"
+    | "start"
+    | "stop"
+    | "add_session"
+    | "remove_session"
+    | "ping_result";
   payload?: unknown;
 }
 
@@ -41,9 +47,9 @@ let isRunning = false;
 let pingInterval: number | null = null;
 const sessions: Map<string, TrackedSession> = new Map();
 
-// Configuration
-const PING_INTERVAL_MS = 60000; // 60 seconds
-const MAX_CONSECUTIVE_FAILURES = 3;
+// Configuration (set via init message from parent)
+let pingIntervalMs = 60000; // Default: 60 seconds
+let maxConsecutiveFailures = 3; // Default: 3 failures
 
 /**
  * Sends a message to the main thread.
@@ -60,7 +66,7 @@ function handlePingCycle(): void {
 
   for (const [userPubkey, session] of sessions.entries()) {
     // Check if we've exceeded failure threshold
-    if (session.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    if (session.consecutiveFailures >= maxConsecutiveFailures) {
       sendMessage({
         type: "session_failed",
         payload: {
@@ -98,7 +104,7 @@ function start(): void {
   if (isRunning) return;
 
   isRunning = true;
-  pingInterval = setInterval(handlePingCycle, PING_INTERVAL_MS);
+  pingInterval = setInterval(handlePingCycle, pingIntervalMs);
 
   sendMessage({
     type: "status",
@@ -176,7 +182,7 @@ function handlePingResult(userPubkey: string, success: boolean): void {
     session.consecutiveFailures++;
 
     // Check if we should terminate this session
-    if (session.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    if (session.consecutiveFailures >= maxConsecutiveFailures) {
       sendMessage({
         type: "session_failed",
         payload: {
@@ -196,6 +202,28 @@ self.onmessage = (event: MessageEvent<WorkerInboundMessage>) => {
 
   try {
     switch (type) {
+      case "init":
+        if (payload && typeof payload === "object") {
+          const config = payload as {
+            pingIntervalMs?: number;
+            maxConsecutiveFailures?: number;
+          };
+          if (config.pingIntervalMs !== undefined) {
+            pingIntervalMs = config.pingIntervalMs;
+          }
+          if (config.maxConsecutiveFailures !== undefined) {
+            maxConsecutiveFailures = config.maxConsecutiveFailures;
+          }
+          sendMessage({
+            type: "status",
+            payload: {
+              initialized: true,
+              config: { pingIntervalMs, maxConsecutiveFailures },
+            },
+          });
+        }
+        break;
+
       case "start":
         start();
         break;
