@@ -1,8 +1,9 @@
 import { App, staticFiles } from "fresh";
 import { AppServices } from "@/shared/app-services.ts";
 import { initializeConfig } from "@/features/config/config-provider.ts";
+import { State } from "./utils.ts";
 
-export const app = new App();
+export const app = new App<State>();
 
 app.use(staticFiles());
 
