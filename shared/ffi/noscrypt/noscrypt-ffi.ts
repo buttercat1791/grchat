@@ -1,6 +1,9 @@
 import { bytesToUtf8, utf8ToBytes } from "@/shared/codecs.ts";
+import { getFfiConfig } from "@/features/config/config-provider.ts";
 
-const NC_BIN_ABS_PATH = "/usr/local/lib/libnoscrypt.so";
+// Load library path from configuration cache
+const NC_BIN_ABS_PATH = getFfiConfig().noscrypt.bin_path;
+
 const NC_SEC_KEY_SIZE = 0x20;
 const NC_PUB_KEY_SIZE = 0x20;
 const NC_SIGNATURE_SIZE = 0x40;

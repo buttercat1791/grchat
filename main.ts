@@ -1,5 +1,6 @@
 import { App, staticFiles } from "fresh";
 import { AppServices } from "@/shared/app-services.ts";
+import { initializeConfig } from "@/features/config/config-provider.ts";
 
 export const app = new App();
 
@@ -8,15 +9,15 @@ app.use(staticFiles());
 // Include file-system based routes here
 app.fsRoutes();
 
-// TODO: Read application config from YAML and pass config values to services as relevant.
+// Initialize configuration system at startup
+const config = await initializeConfig();
 
-// Initialize application services on startup
 await AppServices.instance.initialize({
-  valkeyHost: Deno.env.get("VALKEY_HOST") ?? "localhost",
-  valkeyPort: parseInt(Deno.env.get("VALKEY_PORT") ?? "6379", 10),
+  valkeyHost: config.database.valkey.host,
+  valkeyPort: config.database.valkey.port,
   relayPoolConfig: {
-    connectionTimeout: 10000,
-    idleTimeout: 300000,
+    connectionTimeout: config.shared.nostr.relay_pool.connection_timeout,
+    idleTimeout: config.shared.nostr.relay_pool.idle_timeout,
   },
   onSessionFailed: (_userPubkey, _reason) => {
     // AI-NOTE: In production, consider notifying the user via WebSocket or other mechanism

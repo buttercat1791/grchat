@@ -19,6 +19,7 @@ import {
 } from "@/shared/nostr/events-schema.ts";
 import { RelayPool } from "@/shared/nostr/relay-pool.ts";
 import { signEvent } from "@/shared/nostr/crypto.ts";
+import { getAuthConfig } from "@/features/config/config-provider.ts";
 
 /**
  * Error thrown when NIP-46 operations fail.
@@ -111,8 +112,9 @@ const NIP46_KIND = 24133;
 
 /**
  * Default timeout for NIP-46 operations in milliseconds.
+ * Loaded from configuration cache.
  */
-const DEFAULT_TIMEOUT = 30000;
+const DEFAULT_TIMEOUT = getAuthConfig().nip46_handshake.default_timeout;
 
 /**
  * Zod schema for pending request entry.

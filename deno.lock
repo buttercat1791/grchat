@@ -12,6 +12,7 @@
     "jsr:@std/assert@^1.0.15": "1.0.15",
     "jsr:@std/async@^1.0.15": "1.0.15",
     "jsr:@std/bytes@^1.0.6": "1.0.6",
+    "jsr:@std/cache@~0.2.1": "0.2.1",
     "jsr:@std/crypto@^1.0.5": "1.0.5",
     "jsr:@std/data-structures@^1.0.9": "1.0.9",
     "jsr:@std/dotenv@~0.225.5": "0.225.5",
@@ -35,6 +36,7 @@
     "jsr:@std/testing@^1.0.16": "1.0.16",
     "jsr:@std/uuid@^1.0.7": "1.0.9",
     "jsr:@std/uuid@^1.0.9": "1.0.9",
+    "jsr:@std/yaml@^1.0.10": "1.0.10",
     "npm:@babel/core@^7.28.0": "7.28.5",
     "npm:@babel/preset-react@^7.27.1": "7.28.5_@babel+core@7.28.5",
     "npm:@mjackson/node-fetch-server@0.7": "0.7.0",
@@ -132,6 +134,9 @@
     "@std/bytes@1.0.6": {
       "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
     },
+    "@std/cache@0.2.1": {
+      "integrity": "b6f1abfd118d35b1c4ca90f2b3f4c709a2014ae368f244bdc7533bf1c169d759"
+    },
     "@std/crypto@1.0.5": {
       "integrity": "0dcfbb319fe0bba1bd3af904ceb4f948cde1b92979ec1614528380ed308a3b40"
     },
@@ -203,6 +208,9 @@
         "jsr:@std/bytes",
         "jsr:@std/crypto"
       ]
+    },
+    "@std/yaml@1.0.10": {
+      "integrity": "245706ea3511cc50c8c6d00339c23ea2ffa27bd2c7ea5445338f8feff31fa58e"
     }
   },
   "npm": {
@@ -1246,8 +1254,10 @@
       "jsr:@fresh/plugin-vite@^1.0.6",
       "jsr:@paulmillr/qr@~0.5.1",
       "jsr:@std/assert@^1.0.15",
+      "jsr:@std/cache@~0.2.1",
       "jsr:@std/testing@^1.0.16",
       "jsr:@std/uuid@^1.0.9",
+      "jsr:@std/yaml@^1.0.10",
       "npm:@preact/signals@^2.3.2",
       "npm:@tailwindcss/vite@^4.1.12",
       "npm:@valkey/valkey-glide@^2.1.2",

@@ -30,33 +30,55 @@ import {
   type PendingConnectionData,
   PendingConnectionDataSchema,
 } from "@/features/auth/pending-connection-schema.ts";
+import {
+  getAppConfig,
+  getAuthConfig,
+} from "@/features/config/config-provider.ts";
 
-// AI-NOTE: Default relay URLs for NIP-46 communication
-// These can be overridden via environment variables in production
-const DEFAULT_RELAY_URLS = [
-  "wss://relay.damus.io",
-  "wss://relay.snort.social",
-];
+/**
+ * Get relay URLs for NIP-46 communication from configuration
+ */
+function getRelayUrls(): string[] {
+  const authConfig = getAuthConfig();
+  // Return default relay plus additional allowed relays
+  return [authConfig.relays.default, ...authConfig.relays.allow.slice(0, 2)];
+}
 
-const APP_METADATA = {
-  name: "grchat",
-  url: "https://grchat.example.com", // AI-TODO: Replace with actual URL from config
-};
+/**
+ * Get application metadata from configuration
+ */
+function getAppMetadata(): { name: string; url: string } {
+  const appConfig = getAppConfig();
+  return {
+    name: appConfig.name,
+    url: appConfig.base_url,
+  };
+}
 
 // AI-NOTE: Store pending connections in memory.
-// In production, consider using Valkey with short TTL for multi-instance deployments.
-// This is an anti-pattern and should be replaced with a more robust and reusable storage pattern.
+// AI-TODO: Consider using Valkey with short TTL for multi-instance deployments.
+// AI-TODO: This is an anti-pattern and should be replaced with a more robust storage pattern.
 const pendingConnections = new Map<string, PendingConnectionData>();
 
-// Clean up stale connections (older than 5 minutes)
-setInterval(() => {
-  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-  for (const [id, data] of pendingConnections.entries()) {
-    if (data.createdAt < fiveMinutesAgo) {
-      pendingConnections.delete(id);
+// Initialize cleanup interval with config values
+const authConfig = getAuthConfig();
+const PENDING_TTL_MS = authConfig.nip46_pending.ttl;
+const CLEANUP_INTERVAL_MS = authConfig.nip46_pending.cleanup_interval;
+
+function initializeConnectionManager() {
+  // Clean up stale connections
+  setInterval(() => {
+    const expirationTime = Date.now() - PENDING_TTL_MS;
+    for (const [id, data] of pendingConnections.entries()) {
+      if (data.createdAt < expirationTime) {
+        pendingConnections.delete(id);
+      }
     }
-  }
-}, 60 * 1000); // Run cleanup every minute
+  }, CLEANUP_INTERVAL_MS);
+}
+
+// Start cleanup on module load
+initializeConnectionManager();
 
 export default define.handlers({
   POST() {
@@ -64,11 +86,14 @@ export default define.handlers({
       const services = AppServices.instance;
       const nip46Service = services.nip46Service;
 
-      // TODO: Get relay URLs and metadata from app config, rather than hard-coding.
+      // Get relay URLs and metadata from config
+      const relayUrls = getRelayUrls();
+      const appMetadata = getAppMetadata();
+
       // Generate nostrconnect URL
       const { url, connection } = nip46Service.generateNostrconnectUrl(
-        DEFAULT_RELAY_URLS,
-        APP_METADATA,
+        relayUrls,
+        appMetadata,
       );
 
       // Generate unique connection ID
@@ -76,7 +101,7 @@ export default define.handlers({
 
       // Store connection data for polling
       const createdAt = Date.now();
-      const expiresAt = new Date(createdAt + 5 * 60 * 1000);
+      const expiresAt = new Date(createdAt + PENDING_TTL_MS);
       const conn = PendingConnectionDataSchema.parse({
         connection,
         createdAt: createdAt,
