@@ -2,9 +2,11 @@ import { createDefine } from "fresh";
 
 // This specifies the type of "ctx.state" which is used to share
 // data among middlewares, layouts and routes.
-// TODO: Use actually-required state.
 export interface State {
-  shared: string;
+  auth: {
+    isAuthenticated: boolean;
+    userPubkey: string | null;
+  };
 }
 
 export const define = createDefine<State>();

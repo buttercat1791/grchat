@@ -27,6 +27,8 @@
 
 import { define } from "@/utils.ts";
 import { AppServices } from "@/shared/app-services.ts";
+import { UserAccessControlService } from "@/features/auth/user-access-control.ts";
+import { setAuthCookie } from "@/features/auth/auth-cookie.ts";
 
 export default define.handlers({
   async POST(ctx) {
@@ -92,6 +94,18 @@ export default define.handlers({
         );
       }
 
+      // Check user access control
+      const accessControl = UserAccessControlService.create();
+      if (!accessControl.isUserAllowed(userPubkey)) {
+        return Response.json(
+          {
+            error:
+              "Access denied: User is not authorized to access this application",
+          },
+          { status: 403 },
+        );
+      }
+
       // Create session
       try {
         await sessionManager.createSession(fullConnection, userPubkey);
@@ -126,14 +140,18 @@ export default define.handlers({
         },
       };
 
+      // Set authentication cookie
+      const headers = new Headers({
+        "Content-Type": "application/hal+json",
+        "Location": sessionUri,
+      });
+      setAuthCookie(headers, userPubkey);
+
       return new Response(
         JSON.stringify(response),
         {
           status: 201,
-          headers: {
-            "Content-Type": "application/hal+json",
-            "Location": sessionUri,
-          },
+          headers,
         },
       );
     } catch (error) {

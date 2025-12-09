@@ -24,6 +24,7 @@ import {
 } from "@/features/auth/nip46-auth-service.ts";
 import { NID } from "@/shared/nostr/events-schema.ts";
 import { getAuthConfig } from "@/features/config/config-provider.ts";
+import { UserAccessControlService } from "@/features/auth/user-access-control.ts";
 
 // Configuration values are loaded synchronously from cache
 const authConfig = getAuthConfig();
@@ -82,7 +83,7 @@ function handleTimeout(
 }
 
 /**
- * Handle successful handshake - create session and send completion event
+ * Handle successful handshake - check access control, create session, and send completion event
  */
 async function handleHandshakeSuccess(
   connectionId: string,
@@ -93,6 +94,23 @@ async function handleHandshakeSuccess(
   intervalId?: number,
   timeoutId?: number,
 ): Promise<void> {
+  // Check user access control before creating session
+  const accessControl = UserAccessControlService.create();
+  if (!accessControl.isUserAllowed(userPubkey)) {
+    // Clean up pending connection
+    removePendingConnection(connectionId);
+
+    // Send access denied error
+    sendEvent(controller, encoder, {
+      status: "error",
+      error: "Access denied: User is not authorized to access this application",
+    });
+
+    // Close the connection
+    closeConnection(controller, intervalId, timeoutId);
+    return;
+  }
+
   const services = AppServices.instance;
   const sessionManager = services.sessionManager;
   const keepaliveService = services.keepaliveService;
