@@ -111,12 +111,6 @@ export type HandshakeResult = z.infer<typeof HandshakeResultSchema>;
 const NIP46_KIND = 24133;
 
 /**
- * Default timeout for NIP-46 operations in milliseconds.
- * Loaded from configuration cache.
- */
-const DEFAULT_TIMEOUT = getAuthConfig().nip46_handshake.default_timeout;
-
-/**
  * Zod schema for pending request entry.
  */
 const PendingRequestEntrySchema = z.object({
@@ -474,7 +468,7 @@ export class Nip46Service {
    */
   async awaitHandshake(
     connectionData: Omit<Nip46Connection, "signerPubkey">,
-    timeout: number = DEFAULT_TIMEOUT,
+    timeout: number = getAuthConfig().nip46_handshake.default_timeout,
   ): Promise<HandshakeResult> {
     const { clientSecretKey, clientPubkey, relayUrls, secret } =
       Nip46ConnectionSchema.omit({ signerPubkey: true }).parse(connectionData);
@@ -611,7 +605,7 @@ export class Nip46Service {
   async sendRemoteSignerRequest(
     connection: Nip46Connection,
     request: Nip46Request,
-    timeout: number = DEFAULT_TIMEOUT,
+    timeout: number = getAuthConfig().nip46_handshake.default_timeout,
   ): Promise<Nip46Response> {
     const conn = Nip46ConnectionSchema.parse(connection);
     const req = Nip46RequestSchema.parse(request);

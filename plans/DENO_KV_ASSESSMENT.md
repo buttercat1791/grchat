@@ -2,10 +2,10 @@
 
 ## Executive Summary
 
-This document assesses Deno KV as a database alternative to Valkey for the grchat
-project. After evaluating both options across local development, portability,
-scalability, and performance dimensions, we recommend a **dual-database
-architecture** that supports:
+This document assesses Deno KV as a database alternative to Valkey for the
+grchat project. After evaluating both options across local development,
+portability, scalability, and performance dimensions, we recommend a
+**dual-database architecture** that supports:
 
 - **Deno KV** for local development/testing and serverless deployments on Deno
   Deploy
@@ -33,8 +33,8 @@ The database schema is defined in
 
 **Advantages:**
 
-- **Zero configuration**: Built directly into the Deno runtime, accessible with a
-  single line of code: `Deno.openKv()`
+- **Zero configuration**: Built directly into the Deno runtime, accessible with
+  a single line of code: `Deno.openKv()`
 - **SQLite backend**: Local development uses SQLite, providing a lightweight,
   file-based database that requires no separate process or Docker container
 - **No Docker dependency**: Developers can work without Docker Compose,
@@ -158,8 +158,7 @@ The database schema is defined in
 
 **Sources:**
 
-- [Deno KV - A Global Database for Global
-  Apps](https://deno.com/kv)
+- [Deno KV - A Global Database for Global Apps](https://deno.com/kv)
 - [Deno KV Internals: Building a Database for the Modern
   Web](https://deno.com/blog/building-deno-kv)
 
@@ -217,8 +216,7 @@ The database schema is defined in
 
 **Sources:**
 
-- [Real-World Caching Benchmarks in
-  2025](https://andikads.cloud/articles/deno-kv-outpaces-redis-real-world-caching-benchmarks-in-2025)
+- [Real-World Caching Benchmarks in 2025](https://andikads.cloud/articles/deno-kv-outpaces-redis-real-world-caching-benchmarks-in-2025)
 - [Deno KV vs. Cloudflare Workers KV, Upstash Redis, AWS DynamoDB, and Google
   Firestore](https://deno.com/blog/comparing-deno-kv)
 - [Deno KV Benchmarks Repository](https://github.com/denoland/deno-kv-benchmarks)
@@ -232,8 +230,8 @@ The database schema is defined in
   codebase
 - **Native data structures**: Sorted sets, hashes optimized at C implementation
   level
-- **Predictable performance**: Well-understood performance characteristics across
-  all environments
+- **Predictable performance**: Well-understood performance characteristics
+  across all environments
 
 **Disadvantages:**
 
@@ -288,8 +286,8 @@ await kv.set(["index", "messages", "timeline", timestamp, "abc123"], true);
 const entries = kv.list({ prefix: ["index", "messages", "timeline"] });
 ```
 
-**Source:** [Deno KV Secondary
-Indexes](https://docs.deno.com/deploy/kv/secondary_indexes/)
+**Source:**
+[Deno KV Secondary Indexes](https://docs.deno.com/deploy/kv/secondary_indexes/)
 
 #### Sets → Key Prefixes
 
@@ -351,17 +349,17 @@ deployment context.
 
 ### Use Case Mapping
 
-| Use Case                            | Recommended Database | Rationale                                                                                      |
-| ----------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------- |
-| Local development without Docker    | Deno KV              | Zero configuration, no Docker dependency                                                       |
-| Local development with Docker       | Valkey               | Production parity, full data structure support                                                 |
-| Unit/integration testing            | Deno KV              | Faster test execution, no container orchestration                                              |
-| Deno Deploy serverless              | Deno KV              | Native integration, automatic scaling, global distribution                                     |
-| Self-hosted VPS (single region)     | Either               | Deno KV simpler, Valkey more mature tooling                                                    |
-| Large-scale production (multi-node) | Valkey               | Proven clustering, fine-grained operational control                                            |
-| Multi-region production             | Deno KV (Deploy)     | Built-in global replication                                                                    |
-| Air-gapped/offline deployments      | Valkey               | No external platform dependency                                                                |
-| Embedded/edge deployments           | Deno KV              | No separate database server, smaller footprint                                                 |
+| Use Case                            | Recommended Database | Rationale                                                  |
+| ----------------------------------- | -------------------- | ---------------------------------------------------------- |
+| Local development without Docker    | Deno KV              | Zero configuration, no Docker dependency                   |
+| Local development with Docker       | Valkey               | Production parity, full data structure support             |
+| Unit/integration testing            | Deno KV              | Faster test execution, no container orchestration          |
+| Deno Deploy serverless              | Deno KV              | Native integration, automatic scaling, global distribution |
+| Self-hosted VPS (single region)     | Either               | Deno KV simpler, Valkey more mature tooling                |
+| Large-scale production (multi-node) | Valkey               | Proven clustering, fine-grained operational control        |
+| Multi-region production             | Deno KV (Deploy)     | Built-in global replication                                |
+| Air-gapped/offline deployments      | Valkey               | No external platform dependency                            |
+| Embedded/edge deployments           | Deno KV              | No separate database server, smaller footprint             |
 
 ### Migration Path
 
@@ -430,8 +428,7 @@ enabling the right database choice for each deployment context.
   Web](https://deno.com/blog/building-deno-kv)
 - [KV on Deno Deploy](https://docs.deno.com/deploy/kv/manual/on_deploy/)
 - [Deno KV Secondary Indexes](https://docs.deno.com/deploy/kv/secondary_indexes/)
-- [Real-World Caching Benchmarks in
-  2025](https://andikads.cloud/articles/deno-kv-outpaces-redis-real-world-caching-benchmarks-in-2025)
+- [Real-World Caching Benchmarks in 2025](https://andikads.cloud/articles/deno-kv-outpaces-redis-real-world-caching-benchmarks-in-2025)
 - [Deno KV vs. Cloudflare Workers KV, Upstash Redis, AWS DynamoDB, and Google
   Firestore](https://deno.com/blog/comparing-deno-kv)
 - [Deno KV Benchmarks Repository](https://github.com/denoland/deno-kv-benchmarks)

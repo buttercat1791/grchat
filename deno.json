@@ -53,5 +53,6 @@
       "template"
     ],
     "types": ["vite/client"]
-  }
+  },
+  "unstable": ["kv"]
 }

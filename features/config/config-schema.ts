@@ -65,10 +65,14 @@ const AuthConfigSchema = z.object({
 
 // Database configuration
 const DatabaseConfigSchema = z.object({
+  backend: z.enum(["valkey", "deno-kv"]).default("valkey"),
   valkey: z.object({
     host: z.string().default("localhost"),
     port: z.number().int().positive().max(65535).default(6379),
-  }),
+  }).optional(),
+  deno_kv: z.object({
+    path: z.string().optional().nullable(),
+  }).optional().nullable(),
 });
 
 // FFI configuration
@@ -95,7 +99,7 @@ const SharedConfigSchema = z.object({
 const UsersConfigSchema = z.object({
   mode: z.enum(["strict", "permissive", "open"]).default("strict"),
   allow: z.array(NIDSchema).default([]),
-  deny: z.array(NIDSchema).default([]),
+  deny: z.array(NIDSchema).default([]).optional().nullable(),
 }).refine(
   (data) => data.mode !== "strict" || data.allow.length > 0,
   {

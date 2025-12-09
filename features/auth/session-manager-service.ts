@@ -1,13 +1,13 @@
 /**
  * Session Management Service
  *
- * Manages user sessions in Valkey, handling creation, retrieval, validation,
+ * Manages user sessions in the database, handling creation, retrieval, validation,
  * and deletion of session state.
  *
  * @see ../architecture/SESSIONS.md
  */
 
-import { ValkeyClient } from "@/shared/valkey-client.ts";
+import type { DatabaseService } from "@/shared/database/mod.ts";
 import {
   buildSessionState,
   isSessionValid,
@@ -45,20 +45,6 @@ export interface SessionValidation {
 }
 
 /**
- * Session key prefix in Valkey.
- * Loaded from configuration cache.
- */
-const SESSION_KEY_PREFIX = getAuthConfig().session_manager.valkey_prefix;
-
-/**
- * Session TTL in seconds.
- * Loaded from configuration cache (converted from ms to seconds).
- */
-const SESSION_TTL_SECONDS = Math.floor(
-  getAuthConfig().session_manager.session_ttl / 1000,
-);
-
-/**
  * Session Management Service.
  *
  * Provides CRUD operations for user sessions persisted in a database. Sessions are stored as
@@ -66,7 +52,7 @@ const SESSION_TTL_SECONDS = Math.floor(
  *
  * @example
  * ```ts
- * const sessionManager = new SessionManager(valkeyClient);
+ * const sessionManager = new SessionManager(databaseService);
  *
  * // Create a session after successful authentication
  * const session = await sessionManager.createSession(connection, userPubkey);
@@ -86,10 +72,10 @@ const SESSION_TTL_SECONDS = Math.floor(
  * ```
  */
 export class SessionManager {
-  #valkeyClient: ValkeyClient;
+  #databaseService: DatabaseService;
 
-  constructor(valkeyClient: ValkeyClient) {
-    this.#valkeyClient = valkeyClient;
+  constructor(databaseService: DatabaseService) {
+    this.#databaseService = databaseService;
   }
 
   /**
@@ -124,12 +110,14 @@ export class SessionManager {
     // Serialize to CSV
     const csv = sessionModelToCsv.decode(session);
 
-    // Store in Valkey with TTL
+    // Store in database with TTL
     const key = this.buildSessionKey(userPK);
-    const success = await this.#valkeyClient.setWithTTL(
+    const success = await this.#databaseService.setStringWithTTL(
       key,
       csv,
-      SESSION_TTL_SECONDS,
+      Math.floor(
+        getAuthConfig().session_manager.session_ttl / 1000,
+      ),
     );
 
     if (!success) {
@@ -142,7 +130,7 @@ export class SessionManager {
   }
 
   /**
-   * Retrieves a session from Valkey by user public key.
+   * Retrieves a session from the database by user public key.
    *
    * @param userPubkey - The user's public key
    * @returns The session state if found, null otherwise
@@ -154,7 +142,7 @@ export class SessionManager {
     const userPK = NIDSchema.parse(userPubkey);
 
     const key = this.buildSessionKey(userPK);
-    const csv = await this.#valkeyClient.getString(key);
+    const csv = await this.#databaseService.getString(key);
 
     if (!csv) {
       return null;
@@ -166,7 +154,7 @@ export class SessionManager {
   }
 
   /**
-   * Updates data for an existing session in Valkey while retaining the session's TTL.
+   * Updates data for an existing session in the database while retaining the session's TTL.
    *
    * @param session - The updated session state
    *
@@ -179,7 +167,7 @@ export class SessionManager {
     const key = this.buildSessionKey(sess.userPubkey);
 
     // Get current TTL
-    const ttl = await this.#valkeyClient.ttl(key);
+    const ttl = await this.#databaseService.ttl(key);
     if (!ttl || ttl <= 0) {
       throw new SessionError("Session no longer exists or has expired");
     }
@@ -188,7 +176,7 @@ export class SessionManager {
     const csv = sessionModelToCsv.decode(sess);
 
     // Update with preserved TTL
-    const success = await this.#valkeyClient.setWithTTL(key, csv, ttl);
+    const success = await this.#databaseService.setStringWithTTL(key, csv, ttl);
     if (!success) {
       throw new SessionError(
         "Failed to set session data and/or TTL to database",
@@ -197,7 +185,7 @@ export class SessionManager {
   }
 
   /**
-   * Deletes a session from Valkey.
+   * Deletes a session from the database.
    *
    * @param userPubkey - The user's public key
    *
@@ -208,7 +196,7 @@ export class SessionManager {
     const userPK = NIDSchema.parse(userPubkey);
 
     const key = this.buildSessionKey(userPK);
-    const success = await this.#valkeyClient.delete(key);
+    const success = await this.#databaseService.delete(key);
     if (!success) {
       throw new SessionError("Failed to delete session");
     }
@@ -298,7 +286,7 @@ export class SessionManager {
     const userPK = NIDSchema.parse(userPubkey);
 
     const key = this.buildSessionKey(userPK);
-    return this.#valkeyClient.hasKey(key);
+    return this.#databaseService.exists(key);
   }
 
   /**
@@ -312,26 +300,26 @@ export class SessionManager {
     const userPK = NIDSchema.parse(userPubkey);
 
     const key = this.buildSessionKey(userPK);
-    return this.#valkeyClient.ttl(key);
+    return this.#databaseService.ttl(key);
   }
 
   /**
-   * Gets the Valkey key for a session.
+   * Gets the database key for a session.
    */
   private buildSessionKey(userPubkey: string): string {
     // AI-NOTE: userPubkey is already validated by callers
-    return `${SESSION_KEY_PREFIX}${userPubkey}`;
+    return `${getAuthConfig().session_manager.valkey_prefix}${userPubkey}`;
   }
 }
 
 /**
  * Creates a new session manager instance.
  *
- * @param valkeyClient - The Valkey client to use
+ * @param databaseService - The database service to use
  * @returns A new SessionManager instance
  */
 export function createSessionManager(
-  valkeyClient: ValkeyClient,
+  databaseService: DatabaseService,
 ): SessionManager {
-  return new SessionManager(valkeyClient);
+  return new SessionManager(databaseService);
 }

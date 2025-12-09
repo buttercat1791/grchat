@@ -13,8 +13,7 @@ app.fsRoutes();
 const config = await initializeConfig();
 
 await AppServices.instance.initialize({
-  valkeyHost: config.database.valkey.host,
-  valkeyPort: config.database.valkey.port,
+  database: config.database,
   relayPoolConfig: {
     connectionTimeout: config.shared.nostr.relay_pool.connection_timeout,
     idleTimeout: config.shared.nostr.relay_pool.idle_timeout,
