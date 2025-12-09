@@ -27,7 +27,7 @@
 
 import { define } from "@/utils.ts";
 import { AppServices } from "@/shared/app-services.ts";
-import { UserAccessControlService } from "@/features/auth/user-access-control.ts";
+import { createUserAccessControl } from "@/features/auth/user-access-control.ts";
 import { setAuthCookie } from "@/features/auth/auth-cookie.ts";
 
 export default define.handlers({
@@ -95,7 +95,7 @@ export default define.handlers({
       }
 
       // Check user access control
-      const accessControl = UserAccessControlService.create();
+      const accessControl = createUserAccessControl();
       if (!accessControl.isUserAllowed(userPubkey)) {
         return Response.json(
           {

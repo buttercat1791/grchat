@@ -9,6 +9,11 @@
  * Response (200 OK):
  * {
  *   status: "success";
+ *   _links: {
+ *     self: { href: string, title: string },
+ *     nostrconnect: { href: string, title: string },
+ *     bunker: { href: string, title: string }
+ *   }
  * }
  *
  * Response (error):
@@ -56,12 +61,31 @@ export default define.handlers({
 
       // Clear auth cookie
       const headers = new Headers({
-        "Content-Type": "application/json",
+        "Content-Type": "application/hal+json",
       });
       clearAuthCookie(headers);
 
+      const response = {
+        status: "success",
+        _links: {
+          self: {
+            href: "/api/auth/logout",
+            title: "Log out and terminate session",
+          },
+          nostrconnect: {
+            href: "/api/auth/nostrconnect",
+            title:
+              "Authenticate with nostrconnect URL (client-initiated auth flow)",
+          },
+          bunker: {
+            href: "/api/auth/bunker",
+            title: "Authenticate with bunker URL (signer-initiated auth flow)",
+          },
+        },
+      };
+
       return new Response(
-        JSON.stringify({ status: "success" }),
+        JSON.stringify(response),
         {
           status: 200,
           headers,

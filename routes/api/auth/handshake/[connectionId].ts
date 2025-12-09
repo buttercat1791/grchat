@@ -24,7 +24,9 @@ import {
 } from "@/features/auth/nip46-auth-service.ts";
 import { NID } from "@/shared/nostr/events-schema.ts";
 import { getAuthConfig } from "@/features/config/config-provider.ts";
-import { UserAccessControlService } from "@/features/auth/user-access-control.ts";
+import {
+  createUserAccessControl,
+} from "@/features/auth/user-access-control.ts";
 
 // Configuration values are loaded synchronously from cache
 const authConfig = getAuthConfig();
@@ -95,7 +97,7 @@ async function handleHandshakeSuccess(
   timeoutId?: number,
 ): Promise<void> {
   // Check user access control before creating session
-  const accessControl = UserAccessControlService.create();
+  const accessControl = createUserAccessControl();
   if (!accessControl.isUserAllowed(userPubkey)) {
     // Clean up pending connection
     removePendingConnection(connectionId);

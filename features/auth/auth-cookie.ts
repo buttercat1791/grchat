@@ -6,31 +6,12 @@
  */
 
 import { deleteCookie, getCookies, setCookie } from "@std/http/cookie";
+import { NID } from "../../shared/nostr/events-schema.ts";
 
 /**
  * Name of the authentication cookie.
  */
-export const AUTH_COOKIE_NAME = "grchat_pubkey";
-
-/**
- * Cookie options for production (with Secure flag).
- */
-const PRODUCTION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: "Strict" as const,
-  path: "/",
-};
-
-/**
- * Cookie options for development (without Secure flag for localhost).
- */
-const DEVELOPMENT_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: false,
-  sameSite: "Strict" as const,
-  path: "/",
-};
+export const AUTH_COOKIE_NAME = "grchat_user_pubkey";
 
 /**
  * Determines if we're running in production based on Deno deployment environment.
@@ -41,25 +22,34 @@ function isProduction(): boolean {
 
 /**
  * Gets the appropriate cookie options based on the environment.
+ *
+ * The Secure flag is set to `true` in production.
  */
 function getCookieOptions() {
-  return isProduction()
-    ? PRODUCTION_COOKIE_OPTIONS
-    : DEVELOPMENT_COOKIE_OPTIONS;
+  return {
+    httpOnly: true,
+    secure: isProduction(),
+    sameSite: "Strict" as const,
+    path: "/",
+  };
 }
 
 /**
  * Sets the authentication cookie with the user's public key.
  *
- * @param headers - Response headers to add the Set-Cookie header to
- * @param pubkey - The user's public key (NID)
+ * NB: This function updates the passed `headers` parameter in-place.
+ *
+ * @param headers - Current response headers collection
+ * @param pubkey - The user's public key
+ * @returns The updated response headers with the `Set-Cookie` header for grchat added.
  */
-export function setAuthCookie(headers: Headers, pubkey: string): void {
+export function setAuthCookie(headers: Headers, pubkey: NID): Headers {
   setCookie(headers, {
     name: AUTH_COOKIE_NAME,
     value: pubkey,
     ...getCookieOptions(),
   });
+  return headers;
 }
 
 /**
@@ -76,7 +66,7 @@ export function getAuthCookie(request: Request): string | null {
 /**
  * Clears the authentication cookie (used on logout or session expiry).
  *
- * @param headers - Response headers to add the Set-Cookie header to
+ * @param headers - Response headers
  */
 export function clearAuthCookie(headers: Headers): void {
   deleteCookie(headers, AUTH_COOKIE_NAME, {

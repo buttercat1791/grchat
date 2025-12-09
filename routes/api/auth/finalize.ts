@@ -13,6 +13,12 @@
  * Response (200 OK):
  * {
  *   status: "success";
+ *   userPubkey: string;
+ *   _links: {
+ *     self: { href: string, title: string },
+ *     session: { href: string, title: string },
+ *     logout: { href: string, title: string }
+ *   }
  * }
  *
  * Response (error):
@@ -23,7 +29,7 @@
 
 import { define } from "@/utils.ts";
 import { AppServices } from "@/shared/app-services.ts";
-import { UserAccessControlService } from "@/features/auth/user-access-control.ts";
+import { createUserAccessControl } from "@/features/auth/user-access-control.ts";
 import { setAuthCookie } from "@/features/auth/auth-cookie.ts";
 import { NIDSchema } from "@/shared/nostr/events-schema.ts";
 
@@ -47,7 +53,7 @@ export default define.handlers({
       let validatedPubkey;
       try {
         validatedPubkey = NIDSchema.parse(userPubkey);
-      } catch (error) {
+      } catch (_error) {
         return Response.json(
           {
             error: "Invalid pubkey format",
@@ -69,7 +75,7 @@ export default define.handlers({
       }
 
       // Check user access control
-      const accessControl = UserAccessControlService.create();
+      const accessControl = createUserAccessControl();
       if (!accessControl.isUserAllowed(validatedPubkey)) {
         return Response.json(
           {
@@ -82,12 +88,32 @@ export default define.handlers({
 
       // Set authentication cookie
       const headers = new Headers({
-        "Content-Type": "application/json",
+        "Content-Type": "application/hal+json",
       });
       setAuthCookie(headers, validatedPubkey);
 
+      const sessionUri = `/api/auth/session/${validatedPubkey}`;
+      const response = {
+        status: "success",
+        userPubkey: validatedPubkey,
+        _links: {
+          self: {
+            href: "/api/auth/finalize",
+            title: "Finalize authentication and set auth cookie",
+          },
+          session: {
+            href: sessionUri,
+            title: "Access session details by user pubkey",
+          },
+          logout: {
+            href: "/api/auth/logout",
+            title: "Log out and terminate session",
+          },
+        },
+      };
+
       return new Response(
-        JSON.stringify({ status: "success" }),
+        JSON.stringify(response),
         {
           status: 200,
           headers,
