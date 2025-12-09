@@ -47,6 +47,7 @@ export function QRCodeDisplay({ url }: QRCodeDisplayProps) {
   return (
     <div class="flex flex-col items-center gap-4 w-full">
       {/* QR Code SVG */}
+      {/* AI-TODO: Avoid use of `dangerouslySetInnerHTML */}
       <div
         class="bg-white p-4 rounded-lg shadow-md"
         dangerouslySetInnerHTML={{ __html: svgString }}
