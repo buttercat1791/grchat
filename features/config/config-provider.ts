@@ -38,7 +38,11 @@ const PREFIX = "GRCHAT";
 function applyEnvOverrides(config: Record<string, unknown>): void {
   const configObj = config as {
     app?: { name?: string; base_url?: string; port?: number };
-    database?: { valkey?: { host?: string; port?: number } };
+    database?: {
+      backend?: string;
+      valkey?: { host?: string; port?: number };
+      deno_kv?: { path?: string };
+    };
     ffi?: { noscrypt?: { bin_path?: string } };
   };
 
@@ -62,6 +66,12 @@ function applyEnvOverrides(config: Record<string, unknown>): void {
   }
 
   // Database configuration
+  const databaseBackend = Deno.env.get(`${PREFIX}_DATABASE_BACKEND`);
+  if (databaseBackend) {
+    configObj.database = configObj.database ?? {};
+    configObj.database.backend = databaseBackend;
+  }
+
   const valkeyHost = Deno.env.get(`${PREFIX}_DATABASE_VALKEY_HOST`);
   if (valkeyHost) {
     configObj.database = configObj.database ?? {};
@@ -74,6 +84,13 @@ function applyEnvOverrides(config: Record<string, unknown>): void {
     configObj.database = configObj.database ?? {};
     configObj.database.valkey = configObj.database.valkey ?? {};
     configObj.database.valkey.port = parseInt(valkeyPort, 10);
+  }
+
+  const denoKvPath = Deno.env.get(`${PREFIX}_DATABASE_DENO_KV_PATH`);
+  if (denoKvPath) {
+    configObj.database = configObj.database ?? {};
+    configObj.database.deno_kv = configObj.database.deno_kv ?? {};
+    configObj.database.deno_kv.path = denoKvPath;
   }
 
   // FFI configuration

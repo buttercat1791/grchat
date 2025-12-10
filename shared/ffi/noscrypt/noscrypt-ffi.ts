@@ -1,9 +1,6 @@
 import { bytesToUtf8, utf8ToBytes } from "@/shared/codecs.ts";
 import { getFfiConfig } from "@/features/config/config-provider.ts";
 
-// Load library path from configuration cache
-const NC_BIN_ABS_PATH = getFfiConfig().noscrypt.bin_path;
-
 const NC_SEC_KEY_SIZE = 0x20;
 const NC_PUB_KEY_SIZE = 0x20;
 const NC_SIGNATURE_SIZE = 0x40;
@@ -115,7 +112,7 @@ class Noscrypt {
   private isClosed: boolean = false;
 
   constructor() {
-    this.lib = Deno.dlopen(NC_BIN_ABS_PATH, {
+    this.lib = Deno.dlopen(getFfiConfig().noscrypt.bin_path, {
       NCGetContextStructSize: {
         parameters: [],
         result: "u32",

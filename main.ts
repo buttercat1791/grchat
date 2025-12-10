@@ -1,8 +1,9 @@
 import { App, staticFiles } from "fresh";
 import { AppServices } from "@/shared/app-services.ts";
 import { initializeConfig } from "@/features/config/config-provider.ts";
+import { State } from "./utils.ts";
 
-export const app = new App();
+export const app = new App<State>();
 
 app.use(staticFiles());
 
@@ -13,8 +14,7 @@ app.fsRoutes();
 const config = await initializeConfig();
 
 await AppServices.instance.initialize({
-  valkeyHost: config.database.valkey.host,
-  valkeyPort: config.database.valkey.port,
+  database: config.database,
   relayPoolConfig: {
     connectionTimeout: config.shared.nostr.relay_pool.connection_timeout,
     idleTimeout: config.shared.nostr.relay_pool.idle_timeout,

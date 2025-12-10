@@ -46,6 +46,8 @@ and AI agents.**
 - Prefer UUIDv7 for unique identifiers. UUIDv7 identifiers are sortable by time
   of generation. Use the `@std/uuid/unstable-v7` library from JSR.
 - Always verify code with `deno check`.
+- Always use REST Level 3 (with HATEOAS) when defining API responses (see
+  [PATTERNS](./architecture/PATTERNS.md)).
 
 ### Code Style
 

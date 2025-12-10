@@ -5,7 +5,9 @@
  */
 
 import { z } from "zod";
-import { ValkeyClient } from "@/shared/valkey-client.ts";
+import { type DatabaseService } from "@/shared/database/database-service.ts";
+import { createDatabaseService } from "@/shared/database/database-factory.ts";
+import { DatabaseServiceConfig } from "@/shared/database/database-factory.ts";
 import {
   buildRelayPool,
   RelayPool,
@@ -28,8 +30,7 @@ import {
  * Zod schema for application services configuration.
  */
 export const AppServicesConfigSchema = z.object({
-  valkeyHost: z.string().optional(),
-  valkeyPort: z.number().optional(),
+  database: z.custom<DatabaseServiceConfig>().optional(),
   relayPoolConfig: RelayPoolConfigSchema.optional(),
   onSessionFailed: z
     .function({
@@ -48,7 +49,7 @@ export class AppServices {
   #initialized = false;
 
   // Service instances
-  #valkeyClientInstance: ValkeyClient | null = null;
+  #databaseServiceInstance: DatabaseService | null = null;
   #relayPoolInstance: RelayPool | null = null;
   #nip46ServiceInstance: Nip46Service | null = null;
   #sessionManagerInstance: SessionManager | null = null;
@@ -77,16 +78,14 @@ export class AppServices {
       throw new Error("Services already initialized");
     }
 
-    // Initialize Valkey client
-    this.#valkeyClientInstance = new ValkeyClient({
-      addresses: [
-        {
-          host: cfg.valkeyHost ?? "localhost",
-          port: cfg.valkeyPort ?? 6379,
-        },
-      ],
-    });
-    this.#valkeyClientInstance.connect();
+    // Initialize Database service
+    if (!cfg.database) {
+      throw new Error(
+        "Database configuration is required. Provide cfg.database with database type selection.",
+      );
+    }
+    this.#databaseServiceInstance = createDatabaseService(cfg.database);
+    await this.#databaseServiceInstance.connect();
 
     // Initialize Relay Pool
     this.#relayPoolInstance = buildRelayPool(
@@ -101,7 +100,7 @@ export class AppServices {
 
     // Initialize Session Manager
     this.#sessionManagerInstance = createSessionManager(
-      this.#valkeyClientInstance,
+      this.#databaseServiceInstance,
     );
 
     // Initialize Keepalive service
@@ -141,10 +140,10 @@ export class AppServices {
       this.#relayPoolInstance = null;
     }
 
-    // Disconnect Valkey client
-    if (this.#valkeyClientInstance) {
-      this.#valkeyClientInstance.disconnect();
-      this.#valkeyClientInstance = null;
+    // Disconnect Database service
+    if (this.#databaseServiceInstance) {
+      this.#databaseServiceInstance.disconnect();
+      this.#databaseServiceInstance = null;
     }
 
     this.#nip46ServiceInstance = null;
@@ -153,13 +152,13 @@ export class AppServices {
   }
 
   /**
-   * Get ValkeyClient instance
+   * Get DatabaseService instance
    */
-  get valkeyClient(): ValkeyClient {
-    if (!this.#valkeyClientInstance) {
+  get databaseService(): DatabaseService {
+    if (!this.#databaseServiceInstance) {
       throw new Error("Services not initialized. Call initialize() first.");
     }
-    return this.#valkeyClientInstance;
+    return this.#databaseServiceInstance;
   }
 
   /**

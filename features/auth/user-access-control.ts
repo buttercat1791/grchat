@@ -25,57 +25,13 @@ export class UserAccessControlError extends Error {
 }
 
 /**
- * User access control interface.
- */
-export interface UserAccessControl {
-  /**
-   * Checks if a user is allowed based on the configured access mode.
-   *
-   * @param pubkey - The user's public key (NID)
-   * @returns True if the user is allowed, false otherwise
-   */
-  isUserAllowed(pubkey: string): boolean;
-
-  /**
-   * Gets the current access mode.
-   *
-   * @returns The access mode ("strict", "permissive", or "open")
-   */
-  getAccessMode(): "strict" | "permissive" | "open";
-
-  /**
-   * Gets the allow list (for strict mode).
-   *
-   * @returns Array of allowed pubkeys
-   */
-  getAllowList(): string[];
-
-  /**
-   * Gets the deny list (for permissive mode).
-   *
-   * @returns Array of denied pubkeys
-   */
-  getDenyList(): string[];
-}
-
-/**
  * User access control service implementation.
  */
-export class UserAccessControlService implements UserAccessControl {
+export class UserAccessControl {
   #config: UsersConfig;
 
   constructor(config: UsersConfig) {
     this.#config = config;
-  }
-
-  /**
-   * Creates a new UserAccessControlService from configuration.
-   *
-   * @returns UserAccessControl instance
-   */
-  static create(): UserAccessControl {
-    const usersConfig = getUsersConfig();
-    return new UserAccessControlService(usersConfig);
   }
 
   /**
@@ -103,7 +59,7 @@ export class UserAccessControlService implements UserAccessControl {
 
       case "permissive":
         // Allow all except those on the deny list
-        return !this.#config.deny.includes(pubkey);
+        return !this.#config.deny?.includes(pubkey);
 
       case "open":
         // Allow everyone
@@ -141,15 +97,16 @@ export class UserAccessControlService implements UserAccessControl {
    * @returns Array of denied pubkeys
    */
   getDenyList(): string[] {
-    return [...this.#config.deny];
+    return [...this.#config.deny ?? []];
   }
 }
 
 /**
- * Factory function to create a UserAccessControl instance.
+ * Factory function to create a UserAccessControl instance with appropriate configuration options.
  *
- * @returns Promise resolving to UserAccessControl instance
+ * @returns a `UserAccessControl` instance
  */
-export async function createUserAccessControl(): Promise<UserAccessControl> {
-  return await UserAccessControlService.create();
+export function createUserAccessControl(): UserAccessControl {
+  const usersConfig = getUsersConfig();
+  return new UserAccessControl(usersConfig);
 }

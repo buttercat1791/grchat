@@ -56,17 +56,36 @@ function listenForHandshake(
     `/api/auth/handshake/${connectionId}`,
   );
 
-  eventSource.onmessage = (event) => {
+  eventSource.onmessage = async (event) => {
     try {
       const data = JSON.parse(event.data);
 
       if (data.status === "completed") {
-        // Store user pubkey in localStorage
-        localStorage.setItem("userPubkey", data.userPubkey);
         // Close the event source
         eventSource.close();
-        // Redirect to chat view (index page)
-        globalThis.location.href = "/";
+
+        // Call finalize endpoint to set auth cookie
+        try {
+          const finalizeResponse = await fetch("/api/auth/finalize", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ userPubkey: data.userPubkey }),
+          });
+
+          if (!finalizeResponse.ok) {
+            const error = await finalizeResponse.json();
+            onError(error.error || "Failed to finalize authentication");
+            return;
+          }
+
+          // Redirect to chat view (index page)
+          globalThis.location.href = "/";
+        } catch (error) {
+          console.error("Finalize request failed:", error);
+          onError("Failed to finalize authentication");
+        }
       } else if (data.status === "timeout") {
         console.error("Handshake timeout:", data.error);
         eventSource.close();
@@ -121,12 +140,8 @@ async function submitBunkerUrl(bunkerUrl: string): Promise<void> {
       throw new Error(error.error || "Failed to connect with bunker URL");
     }
 
-    const { userPubkey } = await response.json();
-
-    // Store user pubkey in localStorage
-    localStorage.setItem("userPubkey", userPubkey);
-
     // Redirect to chat view (index page)
+    // AI-NOTE: Cookie is already set by the /api/auth/bunker endpoint
     globalThis.location.href = "/";
   } catch (error) {
     console.error("Bunker URL submission failed:", error);

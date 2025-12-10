@@ -63,7 +63,7 @@ export function BunkerUrlInput({ onSubmit, isLoading }: BunkerUrlInputProps) {
   /**
    * Handle paste event
    */
-  const handlePaste = (e: ClipboardEvent) => {
+  const handlePaste = (_e: ClipboardEvent) => {
     // Allow default paste behavior
     // Validation will occur on change/submit
   };

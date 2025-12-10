@@ -36,9 +36,12 @@ auth:
     challenge_ttl: 21600000 # NIP-42 challenge expiration
 
 database:
+  backend: "deno-kv" # Options: "valkey" | "deno-kv"
   valkey:
     host: "valkey"
     port: 6379
+  deno_kv:
+    path: null # null = default Deno cache location
 
 ffi:
   noscrypt:
