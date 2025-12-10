@@ -3,8 +3,9 @@
 /**
  * Deno KV Database Service Implementation
  *
- * Implements DatabaseService interface using Deno KV.
- * Emulates Redis-like data structures using Deno KV's key-value patterns.
+ * Deno KV does not natively support Redis-style data structures. To maintain compatibility with
+ * the shared interface, this service reimplements some Redis-style data structures on Deno KV's
+ * primitives.
  */
 
 import type {
@@ -301,6 +302,10 @@ export class DenoKvDatabaseService implements DatabaseService {
     this.#ensureConnected("sortedSetRange");
     const kvKey = parseKey(key);
     const results: ScoredMember[] = [];
+
+    // AI-NOTE: This operation may load large amounts of DB values into memory for large sorted
+    // sets. If performance or memory limits cause problems, refactor `sortedSetRange` to only
+    // load the required values from the DB, rather than loading all values and returning a slice.
 
     // List all entries, excluding lookup entries
     const iter = this.#kv!.list({ prefix: kvKey });
