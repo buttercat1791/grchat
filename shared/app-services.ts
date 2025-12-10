@@ -5,11 +5,9 @@
  */
 
 import { z } from "zod";
-import {
-  createDatabaseService,
-  type DatabaseService,
-  type DatabaseServiceConfig,
-} from "@/shared/database/mod.ts";
+import { type DatabaseService } from "@/shared/database/database-service.ts";
+import { createDatabaseService } from "@/shared/database/database-factory.ts";
+import { DatabaseServiceConfig } from "@/shared/database/database-factory.ts";
 import {
   buildRelayPool,
   RelayPool,

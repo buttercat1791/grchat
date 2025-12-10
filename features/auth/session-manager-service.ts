@@ -7,7 +7,7 @@
  * @see ../architecture/SESSIONS.md
  */
 
-import type { DatabaseService } from "@/shared/database/mod.ts";
+import type { DatabaseService } from "@/shared/database/database-service.ts";
 import {
   buildSessionState,
   isSessionValid,
