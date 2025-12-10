@@ -1,8 +1,9 @@
 import { Head } from "fresh/runtime";
-import { define } from "@/utils.ts";
+import type { Context } from "fresh";
+import type { State } from "@/utils.ts";
 import LoginForm from "@/islands/LoginForm.tsx";
 
-export default define.page(function Login() {
+function LoginPage() {
   return (
     <div class="min-h-screen flex items-center justify-center bg-base-200">
       <Head>
@@ -23,4 +24,10 @@ export default define.page(function Login() {
       </div>
     </div>
   );
-});
+}
+
+export async function loginHandler(
+  ctx: Context<State>,
+): Promise<Response> {
+  return await ctx.render(<LoginPage />);
+}

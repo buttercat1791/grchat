@@ -10,28 +10,35 @@
  * - data: {"status": "error", "error": string} - Handshake failed
  */
 
-import { define } from "@/utils.ts";
+import type { Context } from "fresh";
+import type { State } from "@/utils.ts";
 import { AppServices } from "@/shared/app-services.ts";
 import {
   getPendingConnection,
   removePendingConnection,
-} from "@/routes/api/auth/nostrconnect.ts";
-import type { PendingConnectionData } from "@/features/auth/pending-connection-schema.ts";
+} from "./nostrconnect.ts";
+import type { PendingConnectionData } from "@/features/auth/schemas/pending-connection-schema.ts";
 import {
   type HandshakeResult,
   HandshakeResultSchema,
   type Nip46Connection,
-} from "@/features/auth/nip46-auth-service.ts";
+} from "@/features/auth/services/nip46-auth-service.ts";
 import { NID } from "@/shared/nostr/events-schema.ts";
-import { getAuthConfig } from "@/features/config/config-provider.ts";
+import { getAuthConfig } from "@/features/config/index.ts";
 import {
   createUserAccessControl,
 } from "@/features/auth/user-access-control.ts";
+import { Lazy } from "@/shared/utils/lazy.ts";
 
-// Configuration values are loaded synchronously from cache
-const authConfig = getAuthConfig();
-const HANDSHAKE_TIMEOUT = authConfig.nip46_handshake.handshake_expiration;
-const CHECK_INTERVAL = authConfig.nip46_handshake.polling_interval;
+// AI-NOTE: Use Lazy<T> to defer config access until first use, avoiding module initialization
+// order issues. Config may not be initialized when this module is imported.
+const lazyAuthConfig = new Lazy(() => getAuthConfig());
+const HANDSHAKE_TIMEOUT = new Lazy(
+  () => lazyAuthConfig.value.nip46_handshake.handshake_expiration,
+);
+const CHECK_INTERVAL = new Lazy(
+  () => lazyAuthConfig.value.nip46_handshake.polling_interval,
+);
 
 /**
  * Helper to send SSE event through a ReadableStreamDefaultController
@@ -163,7 +170,7 @@ async function checkHandshake(
 ): Promise<HandshakeResult | null> {
   // Check if we're past the timeout threshold
   const elapsed = Date.now() - startTime;
-  if (elapsed > HANDSHAKE_TIMEOUT) {
+  if (elapsed > HANDSHAKE_TIMEOUT.value) {
     return null; // Let the timeout handler deal with this
   }
 
@@ -228,7 +235,7 @@ function setupHandshakePolling(
         timeoutId,
       );
     }
-  }, CHECK_INTERVAL);
+  }, CHECK_INTERVAL.value);
 }
 
 /**
@@ -257,7 +264,7 @@ function initializeHandshakeStream(
   const startTime = Date.now();
   const timeoutId = setTimeout(() => {
     handleTimeout(connectionId, controller, encoder);
-  }, HANDSHAKE_TIMEOUT);
+  }, HANDSHAKE_TIMEOUT.value);
 
   // Set up polling interval
   const intervalId = setupHandshakePolling(
@@ -272,48 +279,46 @@ function initializeHandshakeStream(
   return { intervalId, timeoutId };
 }
 
-export default define.handlers({
-  GET(ctx) {
-    const { connectionId } = ctx.params;
+export function handshakeHandler(ctx: Context<State>): Response {
+  const { connectionId } = ctx.params;
 
-    const body = new ReadableStream({
-      start(controller) {
-        const encoder = new TextEncoder();
-        let intervalId: number | undefined;
-        let timeoutId: number | undefined;
+  const body = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      let intervalId: number | undefined;
+      let timeoutId: number | undefined;
 
-        try {
-          const timers = initializeHandshakeStream(
-            connectionId,
-            controller,
-            encoder,
-          );
+      try {
+        const timers = initializeHandshakeStream(
+          connectionId,
+          controller,
+          encoder,
+        );
 
-          if (timers) {
-            intervalId = timers.intervalId;
-            timeoutId = timers.timeoutId;
-          }
-        } catch (error) {
-          sendEvent(controller, encoder, {
-            status: "error",
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
-          closeConnection(controller, intervalId, timeoutId);
+        if (timers) {
+          intervalId = timers.intervalId;
+          timeoutId = timers.timeoutId;
         }
-
-        // Clean up on client disconnect
-        ctx.req.signal.addEventListener("abort", () => {
-          closeConnection(controller, intervalId, timeoutId);
+      } catch (error) {
+        sendEvent(controller, encoder, {
+          status: "error",
+          error: error instanceof Error ? error.message : "Unknown error",
         });
-      },
-    });
+        closeConnection(controller, intervalId, timeoutId);
+      }
 
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-      },
-    });
-  },
-});
+      // Clean up on client disconnect
+      ctx.req.signal.addEventListener("abort", () => {
+        closeConnection(controller, intervalId, timeoutId);
+      });
+    },
+  });
+
+  return new Response(body, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
+}

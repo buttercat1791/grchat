@@ -20,7 +20,7 @@ import { parse } from "@std/yaml";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { LruCache } from "@std/cache";
-import { GrchatConfig, GrchatConfigSchema } from "./config-schema.ts";
+import { GrchatConfig, GrchatConfigSchema } from "../schemas/config-schema.ts";
 
 const configCache = new LruCache<string, GrchatConfig>(1);
 const CONFIG_CACHE_KEY = "grchat_config";

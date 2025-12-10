@@ -1,5 +1,5 @@
 import { bytesToUtf8, utf8ToBytes } from "@/shared/codecs.ts";
-import { getFfiConfig } from "@/features/config/config-provider.ts";
+import { getFfiConfig } from "@/features/config/index.ts";
 
 const NC_SEC_KEY_SIZE = 0x20;
 const NC_PUB_KEY_SIZE = 0x20;

@@ -18,9 +18,9 @@ import { sessionModelToCsv } from "@/shared/codecs.ts";
 import {
   Nip46Connection,
   Nip46ConnectionSchema,
-} from "@/features/auth/nip46-auth-service.ts";
+} from "@/features/auth/services/nip46-auth-service.ts";
 import { NIDSchema } from "@/shared/nostr/events-schema.ts";
-import { getAuthConfig } from "@/features/config/config-provider.ts";
+import { getAuthConfig } from "@/features/config/index.ts";
 
 /**
  * Error thrown when session operations fail.

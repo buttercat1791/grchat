@@ -19,7 +19,7 @@ import {
 } from "@/shared/nostr/events-schema.ts";
 import { RelayPool } from "@/shared/nostr/relay-pool.ts";
 import { signEvent } from "@/shared/nostr/crypto.ts";
-import { getAuthConfig } from "@/features/config/config-provider.ts";
+import { getAuthConfig } from "@/features/config/index.ts";
 
 /**
  * Error thrown when NIP-46 operations fail.

@@ -11,9 +11,9 @@
 import {
   Nip46Connection,
   Nip46Service,
-} from "@/features/auth/nip46-auth-service.ts";
-import { SessionManager } from "@/features/auth/session-manager-service.ts";
-import { getAuthConfig } from "@/features/config/config-provider.ts";
+} from "@/features/auth/services/nip46-auth-service.ts";
+import { SessionManager } from "@/features/auth/services/session-manager-service.ts";
+import { getAuthConfig } from "@/features/config/index.ts";
 
 /**
  * Error thrown when keepalive operations fail.

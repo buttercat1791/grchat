@@ -1,7 +1,7 @@
 import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import QRCodeDisplay from "@/components/QRCodeDisplay.tsx";
-import BunkerUrlInput from "@/components/BunkerUrlInput.tsx";
+import QRCodeDisplay from "@/features/auth/components/QRCodeDisplay.tsx";
+import BunkerUrlInput from "@/features/auth/components/BunkerUrlInput.tsx";
 
 /**
  * Generate a nostrconnect:// URL for client-initiated authentication flow
@@ -17,6 +17,7 @@ async function generateNostrConnectUrl(): Promise<
   { url: string; connectionId: string }
 > {
   try {
+    console.log("Fetching nostrconnect URL");
     // Call backend to generate nostrconnect URL
     const response = await fetch("/api/auth/nostrconnect", {
       method: "POST",
@@ -175,6 +176,7 @@ export default function LoginForm() {
       errorMessage.value = "";
 
       try {
+        console.log("Initializing client auth flow");
         const { url, connectionId } = await generateNostrConnectUrl();
         nostrConnectUrl.value = url;
 

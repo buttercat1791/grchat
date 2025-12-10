@@ -5,9 +5,10 @@
  * (not in allow list or in deny list).
  */
 
-import { define } from "@/utils.ts";
+import type { Context } from "fresh";
+import type { State } from "@/utils.ts";
 
-export default define.page(function AccessDenied() {
+function AccessDeniedPage() {
   return (
     <div class="min-h-screen flex items-center justify-center bg-base-200">
       <div class="card w-96 bg-base-100 shadow-xl">
@@ -45,4 +46,10 @@ export default define.page(function AccessDenied() {
       </div>
     </div>
   );
-});
+}
+
+export async function accessDeniedHandler(
+  ctx: Context<State>,
+): Promise<Response> {
+  return await ctx.render(<AccessDeniedPage />);
+}

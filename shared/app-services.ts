@@ -16,15 +16,15 @@ import {
 import {
   createNip46Service,
   Nip46Service,
-} from "@/features/auth/nip46-auth-service.ts";
+} from "@/features/auth/services/nip46-auth-service.ts";
 import {
   createSessionManager,
   SessionManager,
-} from "@/features/auth/session-manager-service.ts";
+} from "@/features/auth/services/session-manager-service.ts";
 import {
   createKeepaliveService,
   KeepaliveService,
-} from "@/features/auth/keepalive-service.ts";
+} from "@/features/auth/services/keepalive-service.ts";
 
 /**
  * Zod schema for application services configuration.

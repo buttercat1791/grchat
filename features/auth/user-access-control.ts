@@ -11,8 +11,7 @@
  */
 
 import { NID, NIDSchema } from "@/shared/nostr/events-schema.ts";
-import { getUsersConfig } from "@/features/config/config-provider.ts";
-import type { UsersConfig } from "@/features/config/config-schema.ts";
+import { getUsersConfig, type UsersConfig } from "@/features/config/index.ts";
 
 /**
  * Error thrown when user access control operations fail.

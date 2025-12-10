@@ -1,18 +1,20 @@
 import { App, staticFiles } from "fresh";
 import { AppServices } from "@/shared/app-services.ts";
-import { initializeConfig } from "@/features/config/config-provider.ts";
-import { State } from "./utils.ts";
+import { initializeConfig } from "@/features/config/index.ts";
+import type { State } from "./utils.ts";
 
-export const app = new App<State>();
+// Import middleware
+import { accessControlMiddlewareHandler } from "@/features/auth/index.ts";
 
-app.use(staticFiles());
+// Import layout
+import { AppLayout } from "@/shared/layout/App.tsx";
 
-// Include file-system based routes here
-app.fsRoutes();
+// Import route registrations
+import { registerAuthRoutes } from "@/features/auth/index.ts";
+import { registerApiRoutes } from "@/features/api/index.ts";
 
-// Initialize configuration system at startup
+// Initialize configuration and services
 const config = await initializeConfig();
-
 await AppServices.instance.initialize({
   database: config.database,
   relayPoolConfig: {
@@ -20,11 +22,23 @@ await AppServices.instance.initialize({
     idleTimeout: config.shared.nostr.relay_pool.idle_timeout,
   },
   onSessionFailed: (_userPubkey, _reason) => {
-    // AI-NOTE: In production, consider notifying the user via WebSocket or other mechanism
+    // AI-NOTE: In production, consider notifying user via WebSocket
   },
 });
 
-// Handle graceful shutdown
+export const app = new App<State>()
+  // Static file serving
+  .use(staticFiles())
+  // Global middleware
+  .use(accessControlMiddlewareHandler)
+  // Root layout
+  .layout("*", AppLayout);
+
+// Register feature routes
+registerApiRoutes(app);
+registerAuthRoutes(app);
+
+// Graceful shutdown handlers
 Deno.addSignalListener("SIGINT", () => {
   AppServices.instance.shutdown();
   Deno.exit(0);
@@ -34,3 +48,6 @@ Deno.addSignalListener("SIGTERM", () => {
   AppServices.instance.shutdown();
   Deno.exit(0);
 });
+
+// TODO: Install noscrypt for local testing
+// TODO: Update AGENTS.md files and PATTERNS.md

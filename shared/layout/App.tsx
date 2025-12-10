@@ -1,6 +1,7 @@
-import { define } from "@/utils.ts";
+import type { PageProps } from "fresh";
+import type { State } from "@/utils.ts";
 
-export default define.page(function App({ Component }) {
+export function AppLayout({ Component }: PageProps<unknown, State>) {
   return (
     <html>
       <head>
@@ -13,4 +14,4 @@ export default define.page(function App({ Component }) {
       </body>
     </html>
   );
-});
+}
