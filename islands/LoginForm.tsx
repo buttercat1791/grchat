@@ -18,7 +18,7 @@ async function generateNostrConnectUrl(): Promise<
 > {
   try {
     // Call backend to generate nostrconnect URL
-    const response = await fetch("/api/auth/generate-nostrconnect", {
+    const response = await fetch("/api/auth/nostrconnect", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
