@@ -114,7 +114,7 @@ export class AppServices {
       this.#sessionManagerInstance,
       {
         onSessionFailed: cfg.onSessionFailed ?? ((userPubkey, reason) => {
-          console.log(
+          console.warn(
             `[AppServices] Session failed for ${userPubkey}: ${reason}`,
           );
         }),
