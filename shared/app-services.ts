@@ -25,6 +25,10 @@ import {
   createKeepaliveService,
   KeepaliveService,
 } from "@/features/auth/services/keepalive-service.ts";
+import {
+  createHandshakeService,
+  HandshakeService,
+} from "@/features/auth/services/handshake-service.ts";
 
 /**
  * Zod schema for application services configuration.
@@ -54,6 +58,7 @@ export class AppServices {
   #nip46ServiceInstance: Nip46Service | null = null;
   #sessionManagerInstance: SessionManager | null = null;
   #keepaliveServiceInstance: KeepaliveService | null = null;
+  #handshakeServiceInstance: HandshakeService | null = null;
 
   private constructor() {}
 
@@ -117,6 +122,12 @@ export class AppServices {
     );
     await this.#keepaliveServiceInstance.start();
 
+    // Initialize Handshake service
+    this.#handshakeServiceInstance = createHandshakeService(
+      this.#nip46ServiceInstance,
+      this.#relayPoolInstance,
+    );
+
     this.#initialized = true;
   }
 
@@ -132,6 +143,11 @@ export class AppServices {
     if (this.#keepaliveServiceInstance) {
       this.#keepaliveServiceInstance.stop();
       this.#keepaliveServiceInstance = null;
+    }
+
+    // Clean up handshake service
+    if (this.#handshakeServiceInstance) {
+      this.#handshakeServiceInstance = null;
     }
 
     // Close relay pool
@@ -199,6 +215,16 @@ export class AppServices {
       throw new Error("Services not initialized. Call initialize() first.");
     }
     return this.#keepaliveServiceInstance;
+  }
+
+  /**
+   * Get HandshakeService instance
+   */
+  get handshakeService(): HandshakeService {
+    if (!this.#handshakeServiceInstance) {
+      throw new Error("Services not initialized. Call initialize() first.");
+    }
+    return this.#handshakeServiceInstance;
   }
 
   /**

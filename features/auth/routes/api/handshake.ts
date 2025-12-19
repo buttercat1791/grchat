@@ -17,28 +17,18 @@ import {
   getPendingConnection,
   removePendingConnection,
 } from "./nostrconnect.ts";
-import type { PendingConnectionData } from "@/features/auth/schemas/pending-connection-schema.ts";
 import {
-  type HandshakeResult,
-  HandshakeResultSchema,
   type Nip46Connection,
 } from "@/features/auth/services/nip46-auth-service.ts";
 import { NID } from "@/shared/nostr/events-schema.ts";
-import { getAuthConfig } from "@/features/config/index.ts";
 import {
   createUserAccessControl,
 } from "@/features/auth/user-access-control.ts";
-import { Lazy } from "@/shared/utils/lazy.ts";
+import { HandshakeEventCallback } from "../../services/handshake-service.ts";
 
-// AI-NOTE: Use Lazy<T> to defer config access until first use, avoiding module initialization
-// order issues. Config may not be initialized when this module is imported.
-const lazyAuthConfig = new Lazy(() => getAuthConfig());
-const HANDSHAKE_TIMEOUT = new Lazy(
-  () => lazyAuthConfig.value.nip46_handshake.handshake_expiration,
-);
-const CHECK_INTERVAL = new Lazy(
-  () => lazyAuthConfig.value.nip46_handshake.polling_interval,
-);
+// AI-NOTE: Timeout and polling logic removed - handshake monitoring now uses
+// persistent relay subscriptions via HandshakeService. Cleanup happens naturally
+// when client disconnects SSE stream.
 
 /**
  * Helper to send SSE event through a ReadableStreamDefaultController
@@ -54,41 +44,16 @@ function sendEvent(
 }
 
 /**
- * Helper to clean up intervals, timeouts, and close the stream controller
+ * Helper to close the stream controller
  */
 function closeConnection(
   controller: ReadableStreamDefaultController,
-  intervalId?: number,
-  timeoutId?: number,
 ): void {
-  if (intervalId !== undefined) {
-    clearInterval(intervalId);
-  }
-  if (timeoutId !== undefined) {
-    clearTimeout(timeoutId);
-  }
   try {
     controller.close();
   } catch {
     // Connection may already be closed
   }
-}
-
-/**
- * Handle timeout event - send timeout message and clean up
- */
-function handleTimeout(
-  connectionId: string,
-  controller: ReadableStreamDefaultController,
-  encoder: TextEncoder,
-  intervalId?: number,
-): void {
-  removePendingConnection(connectionId);
-  sendEvent(controller, encoder, {
-    status: "timeout",
-    error: "Handshake timeout exceeded",
-  });
-  closeConnection(controller, intervalId);
 }
 
 /**
@@ -100,8 +65,6 @@ async function handleHandshakeSuccess(
   connection: Nip46Connection,
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
-  intervalId?: number,
-  timeoutId?: number,
 ): Promise<void> {
   // Check user access control before creating session
   const accessControl = createUserAccessControl();
@@ -116,7 +79,7 @@ async function handleHandshakeSuccess(
     });
 
     // Close the connection
-    closeConnection(controller, intervalId, timeoutId);
+    closeConnection(controller);
     return;
   }
 
@@ -138,7 +101,7 @@ async function handleHandshakeSuccess(
   });
 
   // Close the connection
-  closeConnection(controller, intervalId, timeoutId);
+  closeConnection(controller);
 }
 
 /**
@@ -149,103 +112,23 @@ function handleHandshakeError(
   error: unknown,
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
-  intervalId?: number,
-  timeoutId?: number,
 ): void {
   removePendingConnection(connectionId);
   sendEvent(controller, encoder, {
     status: "error",
     error: error instanceof Error ? error.message : "Handshake failed",
   });
-  closeConnection(controller, intervalId, timeoutId);
+  closeConnection(controller);
 }
 
 /**
- * Poll for handshake completion - check if handshake has completed
- * Returns true if handshake completed successfully
- */
-async function checkHandshake(
-  pendingData: PendingConnectionData,
-  startTime: number,
-): Promise<HandshakeResult | null> {
-  // Check if we're past the timeout threshold
-  const elapsed = Date.now() - startTime;
-  if (elapsed > HANDSHAKE_TIMEOUT.value) {
-    return null; // Let the timeout handler deal with this
-  }
-
-  const services = AppServices.instance;
-  const nip46Service = services.nip46Service;
-
-  try {
-    // Attempt handshake with short timeout
-    const result = await nip46Service.awaitHandshake(
-      pendingData.connection,
-      100, // Short timeout - just check if handshake already completed
-    );
-    const res = HandshakeResultSchema.parse(result);
-
-    return res;
-  } catch (error) {
-    // AI-NOTE: Timeout errors are expected during polling - handshake not yet complete
-    if (error instanceof Error && error.message.includes("timeout")) {
-      return null; // Continue polling
-    }
-    // Re-throw other errors
-    throw error;
-  }
-}
-
-/**
- * Set up handshake polling interval
- */
-function setupHandshakePolling(
-  connectionId: string,
-  pendingData: PendingConnectionData,
-  startTime: number,
-  controller: ReadableStreamDefaultController,
-  encoder: TextEncoder,
-  timeoutId: number,
-): number {
-  return setInterval(async () => {
-    try {
-      const result = await checkHandshake(pendingData, startTime);
-
-      if (result) {
-        // Handshake successful!
-        await handleHandshakeSuccess(
-          connectionId,
-          result.userPubkey,
-          result.connection,
-          controller,
-          encoder,
-          undefined, // intervalId will be cleared by handleHandshakeSuccess
-          timeoutId,
-        );
-      }
-      // If result is null, continue polling
-    } catch (error) {
-      // Other errors indicate failure
-      handleHandshakeError(
-        connectionId,
-        error,
-        controller,
-        encoder,
-        undefined, // intervalId will be cleared by handleHandshakeError
-        timeoutId,
-      );
-    }
-  }, CHECK_INTERVAL.value);
-}
-
-/**
- * Initialize handshake stream - validate connection and set up polling
+ * Initialize handshake stream - validate connection and start monitoring via HandshakeService
  */
 function initializeHandshakeStream(
   connectionId: string,
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
-): { intervalId: number; timeoutId: number } | null {
+): void {
   // Retrieve pending connection data
   const pendingData = getPendingConnection(connectionId);
   if (!pendingData) {
@@ -254,29 +137,36 @@ function initializeHandshakeStream(
       error: "Invalid or expired connection ID",
     });
     closeConnection(controller);
-    return null;
+    return;
   }
 
   // Send initial pending status
   sendEvent(controller, encoder, { status: "pending" });
 
-  // Set up timeout handler
-  const startTime = Date.now();
-  const timeoutId = setTimeout(() => {
-    handleTimeout(connectionId, controller, encoder);
-  }, HANDSHAKE_TIMEOUT.value);
+  const handshakeCallback: HandshakeEventCallback = async (
+    connId,
+    result,
+    error,
+  ) => {
+    if (error) {
+      handleHandshakeError(connId, error, controller, encoder);
+    } else if (result) {
+      await handleHandshakeSuccess(
+        connId,
+        result.userPubkey,
+        result.connection,
+        controller,
+        encoder,
+      );
+    }
+  };
 
-  // Set up polling interval
-  const intervalId = setupHandshakePolling(
+  const services = AppServices.instance;
+  services.handshakeService.startHandshake(
     connectionId,
     pendingData,
-    startTime,
-    controller,
-    encoder,
-    timeoutId,
+    handshakeCallback,
   );
-
-  return { intervalId, timeoutId };
 }
 
 export function handshakeHandler(ctx: Context<State>): Response {
@@ -285,31 +175,26 @@ export function handshakeHandler(ctx: Context<State>): Response {
   const body = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
-      let intervalId: number | undefined;
-      let timeoutId: number | undefined;
 
       try {
-        const timers = initializeHandshakeStream(
+        initializeHandshakeStream(
           connectionId,
           controller,
           encoder,
         );
-
-        if (timers) {
-          intervalId = timers.intervalId;
-          timeoutId = timers.timeoutId;
-        }
       } catch (error) {
         sendEvent(controller, encoder, {
           status: "error",
           error: error instanceof Error ? error.message : "Unknown error",
         });
-        closeConnection(controller, intervalId, timeoutId);
+        closeConnection(controller);
       }
 
       // Clean up on client disconnect
       ctx.req.signal.addEventListener("abort", () => {
-        closeConnection(controller, intervalId, timeoutId);
+        const services = AppServices.instance;
+        services.handshakeService.cancelHandshake(connectionId);
+        closeConnection(controller);
       });
     },
   });

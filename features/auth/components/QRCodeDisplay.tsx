@@ -1,5 +1,5 @@
 import { useSignal } from "@preact/signals";
-import encodeQR from "@paulmillr/qr";
+import { Cuer } from "cuer";
 
 export interface QRCodeDisplayProps {
   url: string;
@@ -9,7 +9,8 @@ export interface QRCodeDisplayProps {
  * Displays a QR code for the given nostrconnect:// URL
  * Also provides the URL as copyable text
  *
- * AI-NOTE: Uses @paulmillr/qr which is SSR-compatible with zero dependencies
+ * AI-NOTE: Uses cuer React component (compatible with Preact via preact/compat)
+ * which was specifically developed for use with @paulmillr/qr
  */
 export function QRCodeDisplay({ url }: QRCodeDisplayProps) {
   const copySuccess = useSignal<boolean>(false);
@@ -37,21 +38,17 @@ export function QRCodeDisplay({ url }: QRCodeDisplayProps) {
     );
   }
 
-  // Generate QR code as SVG string
-  // AI-NOTE: This runs during SSR without issues - no dynamic imports needed
-  const svgString = encodeQR(url, "svg", {
-    border: 2,
-    scale: 8,
-  });
-
   return (
     <div class="flex flex-col items-center gap-4 w-full">
-      {/* QR Code SVG */}
-      {/* AI-TODO: Avoid use of `dangerouslySetInnerHTML */}
-      <div
-        class="bg-white p-4 rounded-lg shadow-md"
-        dangerouslySetInnerHTML={{ __html: svgString }}
-      />
+      {/* QR Code using Cuer component */}
+      <div class="bg-white p-4 rounded-lg shadow-md">
+        <Cuer.Root value={url}>
+          {/* @ts-expect-error Preact type compatibility */}
+          <Cuer.Finder fill="#000000" />
+          {/* @ts-expect-error Preact type compatibility */}
+          <Cuer.Cells fill="#000000" />
+        </Cuer.Root>
+      </div>
 
       {/* Connection URL display */}
       <div class="w-full max-w-md">
