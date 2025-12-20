@@ -20,6 +20,7 @@ import {
 import { RelayPool } from "@/shared/nostr/relay-pool.ts";
 import { signEvent } from "@/shared/nostr/crypto.ts";
 import { getAuthConfig } from "@/features/config/index.ts";
+import { generate } from "@std/uuid/unstable-v7";
 
 /**
  * Error thrown when NIP-46 operations fail.
@@ -132,11 +133,6 @@ type PendingRequestEntry = z.infer<typeof PendingRequestEntrySchema>;
 const PendingRequestsMapSchema = z.map(z.string(), PendingRequestEntrySchema);
 type PendingRequestsMap = z.infer<typeof PendingRequestsMapSchema>;
 
-const GetUserPublicKeySchema = z.function({
-  input: [Nip46ConnectionSchema],
-  output: z.promise(z.string()),
-});
-
 /**
  * Zod schema for handshake context validation.
  */
@@ -145,27 +141,6 @@ const HandshakeContextSchema = z.object({
   clientPubkey: z.string(),
   relayUrls: z.array(z.string()),
   secret: z.string().optional(),
-  resolve: z.function({
-    input: [HandshakeResultSchema],
-    output: z.void(),
-  }),
-  reject: z.function({
-    input: [z.any()], // Generic error type
-    output: z.void(),
-  }),
-  clearTimeout: z.function({
-    input: [],
-    output: z.void(),
-  }),
-  getSubId: z.function({
-    input: [],
-    output: z.union([z.string(), z.undefined()]),
-  }),
-  unsubscribeAll: z.function({
-    input: [],
-    output: z.void(),
-  }),
-  getUserPublicKey: GetUserPublicKeySchema,
 });
 type HandshakeContext = z.infer<typeof HandshakeContextSchema>;
 
@@ -190,60 +165,79 @@ const ResponseHandlerContextSchema = z.object({
 type ResponseHandlerContext = z.infer<typeof ResponseHandlerContextSchema>;
 
 /**
- * Handles handshake events from the remote signer.
+ * Partially applies context and returns a function that handles Nostr events from a remote signer.
  *
- * @param this - The function's `this` context, to be set with `bind`
- * @param event - The Nostr event to process
- *
- * @throws a Zod error if the bound context is invalid.
+ * @param context - NIP-46 handshake context values
+ * @param unbsubscribeAll - A function that, when invoked, unsubscribes from relay events for the
+ * current handshake
+ * @param next - A continuation to be invoked when the handshake event has been successfully
+ * processed.
+ * @returns an async thunk that handles a Nostr event forming the remote signer's portion of a
+ * NIP-46 connection handshake.
  */
-function handleHandshakeEvent(
-  this: HandshakeContext,
-  event: NostrEvent,
-): void {
+function getHandshakeEventHandler(
+  context: HandshakeContext,
+  unsubscribeAll: () => void,
+  next: (result: HandshakeResult) => void,
+): (event: NostrEvent) => void {
   // Precondition: validate bound context
-  const ctx = HandshakeContextSchema.parse(this);
-  const ev = NostrEventSchema.parse(event);
+  const {
+    clientSecretKey,
+    clientPubkey,
+    relayUrls,
+    secret,
+  } = HandshakeContextSchema.parse(context);
 
-  if (ev.kind !== NIP46_KIND) return;
+  return (event: NostrEvent): void => {
+    const {
+      kind,
+      pubkey,
+      content,
+    } = NostrEventSchema.parse(event);
 
-  // Decrypt the message
-  using noscrypt = new Noscrypt();
-  const decrypted = noscrypt.decryptNip44(
-    ctx.clientSecretKey,
-    ev.pubkey,
-    ev.content,
-  );
+    if (kind !== NIP46_KIND) {
+      throw new Error(
+        "[handshakeEventHandler] Received event of incorrect kind",
+      );
+    }
 
-  const response = Nip46ResponseSchema.parse(JSON.parse(decrypted));
+    // Decrypt the message
+    using noscrypt = new Noscrypt();
+    const decrypted = noscrypt.decryptNip44(
+      clientSecretKey,
+      pubkey,
+      content,
+    );
 
-  // Confirm that the connection response contains the secret, or that it contains no secret if
-  // none is expected.
-  if (
-    response.result === ctx.secret ||
-    (ctx.secret && response.result?.includes(ctx.secret))
-  ) {
-    ctx.clearTimeout();
+    const res = Nip46ResponseSchema.parse(JSON.parse(decrypted));
+
+    // Confirm that the connection response contains the secret, or that it contains no secret if
+    // none is expected.
+    if (
+      secret &&
+      !res.result?.includes(secret)
+    ) {
+      throw new Error(
+        "[handshakeEventHandler] Handshake response missing expected secret",
+      );
+    }
 
     // Complete the connection
-    const connection = Nip46ConnectionSchema.parse({
-      clientSecretKey: ctx.clientSecretKey,
-      clientPubkey: ctx.clientPubkey,
-      signerPubkey: event.pubkey,
-      relayUrls: ctx.relayUrls,
-      secret: ctx.secret,
+    const conn = Nip46ConnectionSchema.parse({
+      clientSecretKey: clientSecretKey,
+      clientPubkey: clientPubkey,
+      signerPubkey: pubkey,
+      relayUrls: relayUrls,
+      secret: secret,
     });
 
-    // Get the user's actual public key
-    const userPubkey = ctx.getUserPublicKey(connection);
+    unsubscribeAll();
 
-    ctx.unsubscribeAll();
-
-    ctx.resolve({
-      userPubkey,
-      connection,
+    next({
+      userPubkey: pubkey,
+      connection: conn,
     });
-  }
+  };
 }
 
 /**
@@ -468,7 +462,6 @@ export class Nip46Service {
    */
   async awaitHandshake(
     connectionData: Omit<Nip46Connection, "signerPubkey">,
-    timeout: number = getAuthConfig().nip46_handshake.default_timeout,
   ): Promise<HandshakeResult> {
     const { clientSecretKey, clientPubkey, relayUrls, secret } =
       Nip46ConnectionSchema.omit({ signerPubkey: true }).parse(connectionData);
@@ -480,33 +473,26 @@ export class Nip46Service {
 
     return new Promise((resolve, reject) => {
       let ctx: HandshakeContext | null = null;
-      const timeoutId = setTimeout(() => {
-        ctx?.unsubscribeAll();
-        reject(new Nip46Error("Handshake timed out"));
-      }, timeout);
 
-      let subId: string | undefined;
+      // AI-NOTE: subId is defined by the result returned by the relay on successfull subscription.
+      // It is available to unsubscribeAll via closure.
+      let subId: string;
+      const unsubscribeAll = () =>
+        relayUrls.forEach((relay) => this.#relayPool.unsubscribe(relay, subId));
 
       ctx = {
         clientSecretKey,
         clientPubkey,
         relayUrls,
         secret,
-        resolve,
-        reject,
-        clearTimeout: () => clearTimeout(timeoutId),
-        getSubId: () => subId,
-        unsubscribeAll: () => {
-          for (const relay of relayUrls) {
-            if (subId) this.#relayPool.unsubscribe(relay, subId);
-          }
-        },
-        getUserPublicKey: GetUserPublicKeySchema.implement(
-          (connection: Nip46Connection) => this.#getUserPublicKey(connection),
-        ),
       };
 
-      const handleEvent = handleHandshakeEvent.bind(ctx);
+      // A thunk-returning helper is used to reduce clutter in awaitHandshake()
+      const handler = getHandshakeEventHandler(
+        ctx,
+        unsubscribeAll,
+        resolve,
+      );
 
       // Subscribe on connection relays
       for (const relayUrl of relayUrls) {
@@ -514,12 +500,11 @@ export class Nip46Service {
           .subscribe(relayUrl, [{
             kinds: [NIP46_KIND],
             "#p": [clientPubkey],
-          }], handleEvent)
+          }], handler)
           .then((id) => {
             subId = id;
           })
           .catch((error) => {
-            clearTimeout(timeoutId);
             reject(
               new Nip46Error("Failed to subscribe for handshake", {
                 cause: error,
@@ -546,7 +531,7 @@ export class Nip46Service {
     // If there's a secret, we need to send a connect acknowledgment first
     if (conn.secret) {
       await this.sendRemoteSignerRequest(conn, {
-        id: crypto.randomUUID(),
+        id: generate(),
         method: "connect",
         params: [conn.clientPubkey, conn.secret],
       });
