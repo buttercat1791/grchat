@@ -50,4 +50,3 @@ Deno.addSignalListener("SIGTERM", () => {
 });
 
 // TODO: Write script to install noscrypt for local testing
-// TODO: Update AGENTS.md files and PATTERNS.md

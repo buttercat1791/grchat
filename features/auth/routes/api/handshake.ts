@@ -143,7 +143,10 @@ function initializeHandshakeStream(
   // Send initial pending status
   sendEvent(controller, encoder, { status: "pending" });
 
-  AppServices.instance.nip46Service.awaitHandshake(pendingData.connection)
+  AppServices.instance.nip46Service.awaitHandshake(
+    connectionId,
+    pendingData.connection,
+  )
     .then((res: HandshakeResult) =>
       handleHandshakeSuccess(
         connectionId,

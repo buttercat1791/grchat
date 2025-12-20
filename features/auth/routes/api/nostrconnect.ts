@@ -26,7 +26,6 @@
 import type { Context } from "fresh";
 import type { State } from "@/utils.ts";
 import { AppServices } from "@/shared/app-services.ts";
-import { generate } from "@std/uuid/unstable-v7";
 import {
   type PendingConnectionData,
   PendingConnectionDataSchema,
@@ -97,14 +96,12 @@ export function nostrconnectHandler(_ctx: Context<State>): Response {
     const relayUrls = getRelayUrls();
     const appMetadata = getAppMetadata();
 
-    // Generate nostrconnect URL
-    const { url, connection } = nip46Service.generateNostrconnectUrl(
-      relayUrls,
-      appMetadata,
-    );
-
-    // Generate unique connection ID
-    const connectionId = generate();
+    // Generate nostrconnect URL and connection ID
+    const { connectionId, url, connection } = nip46Service
+      .generateNostrconnectUrl(
+        relayUrls,
+        appMetadata,
+      );
 
     // Store connection data for polling
     const createdAt = Date.now();

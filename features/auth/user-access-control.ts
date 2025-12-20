@@ -6,8 +6,6 @@
  * - strict: Only allow pubkeys on the allow list
  * - permissive: Allow all pubkeys except those on the deny list
  * - open: Allow all pubkeys
- *
- * AI-TODO: Use this service in middleware to authorize/deny incoming requests.
  */
 
 import { NID, NIDSchema } from "@/shared/nostr/events-schema.ts";

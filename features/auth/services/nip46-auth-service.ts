@@ -73,6 +73,8 @@ export type Nip46Connection = z.infer<typeof Nip46ConnectionSchema>;
  * Zod schema for nostrconnect:// URL result.
  */
 const NostrconnectResultSchema = z.object({
+  /** Unique identifier for this connection attempt */
+  connectionId: z.uuidv7(),
   /** The nostrconnect:// URL to present to the user */
   url: z.string(),
   /** The connection state to use for completing the handshake */
@@ -132,6 +134,12 @@ type PendingRequestEntry = z.infer<typeof PendingRequestEntrySchema>;
  */
 const PendingRequestsMapSchema = z.map(z.string(), PendingRequestEntrySchema);
 type PendingRequestsMap = z.infer<typeof PendingRequestsMapSchema>;
+
+/**
+ * Zod schema for tracking handshake subscription data.
+ */
+const HandshakeSubscriptionSchema = z.tuple([z.url(), z.string()]);
+type HandshakeSubscription = z.infer<typeof HandshakeSubscriptionSchema>;
 
 /**
  * Zod schema for handshake context validation.
@@ -318,14 +326,17 @@ function getSignerResponseHandler(
  * const service = new Nip46Service(relayPool);
  *
  * // Generate URL for user to scan
- * const { url, connection } = service.generateNostrconnectUrl(
+ * const { connectionId, url, connection } = service.generateNostrconnectUrl(
  *   ["wss://relay.example.com"],
  *   { name: "My App" }
  * );
  *
  * // Wait for signer response and complete handshake
- * const result = await service.awaitHandshake(connection);
+ * const result = await service.awaitHandshake(connectionId, connection);
  * console.log("User pubkey:", result.userPubkey);
+ *
+ * // Or cancel if needed
+ * await service.cancelHandshake(connectionId);
  * ```
  *
  * @example Signer-initiated flow (bunker://)
@@ -343,6 +354,7 @@ function getSignerResponseHandler(
 export class Nip46Service {
   #relayPool: RelayPool;
   #pendingRequests: PendingRequestsMap = new Map();
+  #pendingHandshakes: Map<string, Array<HandshakeSubscription>> = new Map();
 
   constructor(relayPool: RelayPool) {
     this.#relayPool = relayPool;
@@ -353,7 +365,7 @@ export class Nip46Service {
    *
    * @param relayUrls - Relay URLs where grchat will listen for the signer's response
    * @param metadata - Optional application metadata
-   * @returns The URL and connection state
+   * @returns The connection ID, URL, and connection state
    */
   generateNostrconnectUrl(
     relayUrls: string[],
@@ -365,6 +377,9 @@ export class Nip46Service {
     if (relayUrls.length === 0) {
       throw new Nip46Error("At least one relay URL is required");
     }
+
+    // Generate unique connection ID
+    const connectionId = generate();
 
     // Generate ephemeral keypair for this connection
     using noscrypt = new Noscrypt();
@@ -392,6 +407,7 @@ export class Nip46Service {
     const url = `nostrconnect://${publicKey}?${params.toString()}`;
 
     return {
+      connectionId,
       url,
       connection: {
         clientSecretKey: secretKey,
@@ -455,13 +471,14 @@ export class Nip46Service {
   /**
    * Awaits a signer's response to a nostrconnect:// (client-initiated) connection.
    *
-   * @param partialConnection - The connection state from generateNostrconnectUrl
-   * @param timeout - Timeout in milliseconds (default: 30s)
+   * @param connectionId - Unique identifier for this connection attempt
+   * @param connectionData - The connection state from generateNostrconnectUrl
    * @returns The completed handshake result
    *
    * @throws {Nip46Error} If the handshake times out or fails
    */
   async awaitHandshake(
+    connectionId: string,
     connectionData: Omit<Nip46Connection, "signerPubkey">,
   ): Promise<HandshakeResult> {
     const { clientSecretKey, clientPubkey, relayUrls, secret } =
@@ -472,47 +489,52 @@ export class Nip46Service {
       await this.#relayPool.connect(relay);
     }
 
+    // Initialize tracking for this handshake
+    this.#pendingHandshakes.set(connectionId, []);
+
     return new Promise((resolve, reject) => {
-      let ctx: HandshakeContext | null = null;
-
-      // AI-NOTE: subId is defined by the result returned by the relay on successfull subscription.
-      // It is available to unsubscribeAll via closure.
-      let subId: string;
-      const unsubscribeAll = () =>
-        relayUrls.forEach((relay) => this.#relayPool.unsubscribe(relay, subId));
-
-      ctx = {
+      const ctx: HandshakeContext = {
         clientSecretKey,
         clientPubkey,
         relayUrls,
         secret,
       };
 
+      // Partially apply connectionId to reuse cancelHandshake()
+      const unsubscribe = () => this.cancelHandshake(connectionId);
+
       // A thunk-returning helper is used to reduce clutter in awaitHandshake()
-      const handler = getHandshakeEventHandler(
+      const handle = getHandshakeEventHandler(
         ctx,
-        unsubscribeAll,
+        unsubscribe,
         resolve,
       );
 
       // Subscribe on connection relays
-      for (const relayUrl of relayUrls) {
+      const subscriptionPromises = relayUrls.map((relayUrl) =>
         this.#relayPool
           .subscribe(relayUrl, [{
             kinds: [NIP46_KIND],
             "#p": [clientPubkey],
-          }], handler)
-          .then((id) => {
-            subId = id;
+          }], handle)
+          .then((subId) => {
+            const hs = HandshakeSubscriptionSchema.parse([relayUrl, subId]);
+            this.#pendingHandshakes.get(connectionId)!.push(hs);
           })
           .catch((error) => {
+            unsubscribe();
             reject(
               new Nip46Error("Failed to subscribe for handshake", {
                 cause: error,
               }),
             );
-          });
-      }
+          })
+      );
+
+      // Wait for all subscriptions to be established
+      Promise.all(subscriptionPromises).catch(() => {
+        // Error already handled in individual promise catch blocks
+      });
     });
   }
 
@@ -547,8 +569,22 @@ export class Nip46Service {
     };
   }
 
-  async cancelHandshake(connectionId: string): Promise<void> {
-    // TODO: Track and clean up relay connections opened to listen for handshake responses.
+  /**
+   * Cancels a pending handshake and cleans up relay subscriptions.
+   *
+   * @param connectionId - The unique identifier for the connection attempt
+   */
+  cancelHandshake(connectionId: string): void {
+    const tracking = this.#pendingHandshakes.get(connectionId);
+    if (!tracking) return;
+
+    let handshake = tracking.pop();
+    while (handshake) {
+      this.#relayPool.unsubscribe(handshake[0], handshake[1]);
+      handshake = tracking.pop();
+    }
+
+    this.#pendingHandshakes.delete(connectionId);
   }
 
   /**
