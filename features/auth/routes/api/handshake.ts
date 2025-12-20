@@ -25,7 +25,6 @@ import { NID } from "@/shared/nostr/events-schema.ts";
 import {
   createUserAccessControl,
 } from "@/features/auth/user-access-control.ts";
-import { HandshakeEventCallback } from "../../services/handshake-service.ts";
 
 // AI-NOTE: Timeout and polling logic removed - handshake monitoring now uses
 // persistent relay subscriptions via HandshakeService. Cleanup happens naturally
@@ -144,27 +143,19 @@ function initializeHandshakeStream(
   // Send initial pending status
   sendEvent(controller, encoder, { status: "pending" });
 
-  const handshakeCallback: HandshakeEventCallback = async (
-    connId,
-    result,
-    error,
-  ) => {
-    if (error) {
-      handleHandshakeError(connId, error, controller, encoder);
-    } else if (result) {
-      await handleHandshakeSuccess(
-        connId,
-        result.userPubkey,
-        result.connection,
+  AppServices.instance.nip46Service.awaitHandshake(pendingData.connection)
+    .then((res: HandshakeResult) =>
+      handleHandshakeSuccess(
+        connectionId,
+        res.userPubkey,
+        res.connection,
         controller,
         encoder,
-      );
-    }
-  };
-
-  AppServices.instance.nip46Service.awaitHandshake(pendingData.connection)
-    .then((res: HandshakeResult) => handshakeCallback(connectionId, res))
-    .catch((err: Error) => handshakeCallback(connectionId, null, err));
+      )
+    )
+    .catch((err: Error) =>
+      handleHandshakeError(connectionId, err, controller, encoder)
+    );
 }
 
 export function handshakeHandler(ctx: Context<State>): Response {
@@ -191,7 +182,7 @@ export function handshakeHandler(ctx: Context<State>): Response {
       // Clean up on client disconnect
       ctx.req.signal.addEventListener("abort", () => {
         const services = AppServices.instance;
-        services.handshakeService.cancelHandshake(connectionId);
+        services.nip46Service.cancelHandshake(connectionId);
         closeConnection(controller);
       });
     },

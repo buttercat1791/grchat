@@ -546,6 +546,10 @@ export class Nip46Service {
     };
   }
 
+  async cancelHandshake(connectionId: string): Promise<void> {
+    // TODO: Track and clean up relay connections opened to listen for handshake responses.
+  }
+
   /**
    * Gets the user's public key from the remote signer.
    *
