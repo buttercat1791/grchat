@@ -69,7 +69,10 @@ export function BunkerUrlInput({ onSubmit, isLoading }: BunkerUrlInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} class="w-full max-w-md">
+    <form
+      onSubmit={handleSubmit}
+      class="w-full max-w-md"
+    >
       <div class="form-control w-full">
         <label class="label">
           <span class="label-text">Bunker URL</span>

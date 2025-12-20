@@ -264,16 +264,18 @@ export default function LoginForm() {
         <div class="divider divider-vertical md:divider-horizontal">OR</div>
 
         {/* Signer-initiated flow: Bunker URL Input */}
-        <div class="flex flex-col items-center">
+        <div class="flex flex-col">
           <h2 class="text-xl font-semibold mb-4">Enter Bunker URL</h2>
-          <p class="text-sm text-center mb-6 opacity-70">
+          <p class="text-sm text-center mb-6 opacity-70 grow-0">
             Paste the bunker:// URL from your Nostr signer
           </p>
 
-          <BunkerUrlInput
-            onSubmit={handleBunkerSubmit}
-            isLoading={isConnecting.value}
-          />
+          <div class="grow place-content-center">
+            <BunkerUrlInput
+              onSubmit={handleBunkerSubmit}
+              isLoading={isConnecting.value}
+            />
+          </div>
         </div>
       </div>
     </div>
