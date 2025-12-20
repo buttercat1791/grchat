@@ -241,19 +241,18 @@ function getHandshakeEventHandler(
 }
 
 /**
- * Sets up a pending request with timeout handling.
+ * Creates a pending request with timeout handling.
  *
- * @param this - The function's `this` context, to be set with `bind`
- *
+ * @param context - The pending request context
  * @returns A promise that resolves when the response is received
  *
- * @throws a Zod error if the bound context is invalid.
+ * @throws a Zod error if the context is invalid.
  */
-function setupPendingRequest(this: PendingRequestContext): Promise<
-  Nip46Response
-> {
-  // Precondition: validate bound context
-  const ctx = PendingRequestContextSchema.parse(this);
+function createPendingRequest(
+  context: PendingRequestContext,
+): Promise<Nip46Response> {
+  // Precondition: validate context
+  const ctx = PendingRequestContextSchema.parse(context);
 
   return new Promise<Nip46Response>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
@@ -270,43 +269,45 @@ function setupPendingRequest(this: PendingRequestContext): Promise<
 }
 
 /**
- * Handles response events from the remote signer.
+ * Creates a handler for response events from the remote signer.
  *
- * @param this - The function's `this` context, to be set with `bind`
- * @param event - The Nostr event to process
+ * @param context - The response handler context
+ * @returns An async thunk that handles Nostr events from the remote signer
  *
- * @throws a Zod error if the bound context is invalid
+ * @throws a Zod error if the context is invalid
  */
-function handleSignerResponse(
-  this: ResponseHandlerContext,
-  event: NostrEvent,
-): void {
-  // Precondition: validate bound context
-  const ctx = ResponseHandlerContextSchema.parse(this);
-  const ev = NostrEventSchema.parse(event);
+function getSignerResponseHandler(
+  context: ResponseHandlerContext,
+): (event: NostrEvent) => void {
+  // Precondition: validate context
+  const ctx = ResponseHandlerContextSchema.parse(context);
 
-  if (ev.kind !== NIP46_KIND) return;
-  if (ev.pubkey !== ctx.connection.signerPubkey) return;
+  return (event: NostrEvent): void => {
+    const ev = NostrEventSchema.parse(event);
 
-  try {
-    using nc = new Noscrypt();
-    const decrypted = nc.decryptNip44(
-      ctx.connection.clientSecretKey,
-      ev.pubkey,
-      ev.content,
-    );
+    if (ev.kind !== NIP46_KIND) return;
+    if (ev.pubkey !== ctx.connection.signerPubkey) return;
 
-    const response = Nip46ResponseSchema.parse(JSON.parse(decrypted));
+    try {
+      using nc = new Noscrypt();
+      const decrypted = nc.decryptNip44(
+        ctx.connection.clientSecretKey,
+        ev.pubkey,
+        ev.content,
+      );
 
-    const pending = ctx.pendingRequests.get(response.id);
-    if (pending) {
-      clearTimeout(pending.timeout);
-      ctx.pendingRequests.delete(response.id);
-      pending.resolve(response);
+      const response = Nip46ResponseSchema.parse(JSON.parse(decrypted));
+
+      const pending = ctx.pendingRequests.get(response.id);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        ctx.pendingRequests.delete(response.id);
+        pending.resolve(response);
+      }
+    } catch {
+      // Ignore decryption failures
     }
-  } catch {
-    // Ignore decryption failures
-  }
+  };
 }
 
 /**
@@ -622,16 +623,16 @@ export class Nip46Service {
       await signEvent(baseEvent, conn.clientSecretKey),
     );
 
-    // Set up pending request using bind
-    const responsePromise = setupPendingRequest.bind({
+    // Set up pending request
+    const responsePromise = createPendingRequest({
       requestId: req.id,
       method: req.method,
       timeout,
       pendingRequests: this.#pendingRequests,
-    })();
+    });
 
-    // Create response handler using bind
-    const handleResponse = handleSignerResponse.bind({
+    // Create response handler
+    const handleResponse = getSignerResponseHandler({
       connection: conn,
       pendingRequests: this.#pendingRequests,
     });
