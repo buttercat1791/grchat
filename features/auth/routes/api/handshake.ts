@@ -18,6 +18,7 @@ import {
   removePendingConnection,
 } from "./nostrconnect.ts";
 import {
+  HandshakeResult,
   type Nip46Connection,
 } from "@/features/auth/services/nip46-auth-service.ts";
 import { NID } from "@/shared/nostr/events-schema.ts";
@@ -161,12 +162,9 @@ function initializeHandshakeStream(
     }
   };
 
-  const services = AppServices.instance;
-  services.handshakeService.startHandshake(
-    connectionId,
-    pendingData,
-    handshakeCallback,
-  );
+  AppServices.instance.nip46Service.awaitHandshake(pendingData.connection)
+    .then((res: HandshakeResult) => handshakeCallback(connectionId, res))
+    .catch((err: Error) => handshakeCallback(connectionId, null, err));
 }
 
 export function handshakeHandler(ctx: Context<State>): Response {
