@@ -18,7 +18,6 @@
     "@std/testing": "jsr:@std/testing@^1.0.16",
     "@std/uuid": "jsr:@std/uuid@^1.0.9",
     "@std/yaml": "jsr:@std/yaml@^1.0.10",
-    "@valkey/valkey-glide": "npm:@valkey/valkey-glide@^2.2.1",
     "daisyui": "npm:daisyui@^5.5.14",
     "fresh": "jsr:@fresh/core@^2.2.0",
     "preact": "npm:preact@^10.27.2",

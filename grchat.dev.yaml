@@ -35,7 +35,7 @@ auth:
     challenge_ttl: 21600000 # NIP-42 challenge expiration
 
 database:
-  backend: "deno-kv" # Options: "valkey" | "deno-kv"
+  backend: "deno-kv" # Options: "deno-kv"
   valkey:
     host: "valkey"
     port: 6379

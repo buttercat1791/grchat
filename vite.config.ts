@@ -4,12 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [fresh(), tailwindcss()],
-  ssr: {
-    external: [
-      "@valkey/valkey-glide",
-      "protobufjs",
-      "@protobufjs/utf8",
-      "@protobufjs/inquire",
-    ],
+  worker: {
+    format: "es",
   },
 });

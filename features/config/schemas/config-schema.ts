@@ -64,7 +64,7 @@ const AuthConfigSchema = z.object({
 
 // Database configuration
 const DatabaseConfigSchema = z.object({
-  backend: z.enum(["valkey", "deno-kv"]).default("valkey"),
+  backend: z.enum(["deno-kv"]).default("deno-kv"),
   valkey: z.object({
     host: z.string().default("localhost"),
     port: z.number().int().positive().max(65535).default(6379),

@@ -96,11 +96,12 @@ export class KeepaliveService implements Disposable {
 
     try {
       // Create worker
-      // AI-NOTE: Using relative path here because @/ alias doesn't work in URL constructor
-      this.worker = new Worker(
-        new URL("./keepalive-worker.ts", import.meta.url).href,
-        { type: "module" },
-      );
+      // AI-NOTE: In Vite SSR builds, workers aren't bundled. We load from source.
+      // Use file:// URL to absolute path in source directory
+      const workerPath = new URL(
+        import.meta.resolve("@/features/auth/services/keepalive-worker.ts"),
+      ).href;
+      this.worker = new Worker(workerPath, { type: "module" });
 
       // Set up message handler
       this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {

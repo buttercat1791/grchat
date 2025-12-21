@@ -6,17 +6,12 @@
 
 import type { DatabaseService } from "./database-service.ts";
 import {
-  createValkeyDatabaseService,
-  type ValkeyDatabaseConfig,
-} from "./valkey-database-service.ts";
-import {
   createDenoKvDatabaseService,
   type DenoKvDatabaseConfig,
 } from "./deno-kv-database-service.ts";
 
 export interface DatabaseServiceConfig {
-  backend: "valkey" | "deno-kv";
-  valkey?: ValkeyDatabaseConfig;
+  backend: "deno-kv";
   denoKv?: DenoKvDatabaseConfig;
 }
 
@@ -45,8 +40,6 @@ export function createDatabaseService(
   config: DatabaseServiceConfig,
 ): DatabaseService {
   switch (config.backend) {
-    case "valkey":
-      return createValkeyDatabaseService(config.valkey);
     case "deno-kv":
       return createDenoKvDatabaseService(config.denoKv);
     default:
