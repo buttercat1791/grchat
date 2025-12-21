@@ -97,7 +97,9 @@ export class KeepaliveService implements Disposable {
     try {
       // Create worker
       // AI-NOTE: In Vite SSR builds, workers aren't bundled. We load from source.
-      // Use file:// URL to absolute path in source directory
+      // Use file:// URL to absolute path in source directory.
+      // AI-TODO: Use relative path import for dev server, and import.meta.resolve (below) for prod
+      // builds.
       const workerPath = new URL(
         import.meta.resolve("@/features/auth/services/keepalive-worker.ts"),
       ).href;
