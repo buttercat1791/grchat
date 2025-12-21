@@ -37,7 +37,7 @@ const PREFIX = "GRCHAT";
  */
 function applyEnvOverrides(config: Record<string, unknown>): void {
   const configObj = config as {
-    app?: { name?: string; base_url?: string; port?: number };
+    app?: { name?: string; version?: string; base_url?: string; port?: number };
     database?: {
       backend?: string;
       valkey?: { host?: string; port?: number };
@@ -51,6 +51,12 @@ function applyEnvOverrides(config: Record<string, unknown>): void {
   if (appName) {
     configObj.app = configObj.app ?? {};
     configObj.app.name = appName;
+  }
+
+  const appVersion = Deno.env.get(`${PREFIX}_APP_VERSION`);
+  if (appVersion) {
+    configObj.app = configObj.app ?? {};
+    configObj.app.version = appVersion;
   }
 
   const appBaseUrl = Deno.env.get(`${PREFIX}_APP_BASE_URL`);

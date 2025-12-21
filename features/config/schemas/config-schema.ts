@@ -11,6 +11,7 @@ import { NIDSchema } from "@/shared/nostr/events-schema.ts";
 // App configuration
 const AppConfigSchema = z.object({
   name: z.string().default("grchat"),
+  version: z.string().default("0.1.0-dev"),
   base_url: z.url(),
   port: z.number().int().positive().max(65535).default(1993),
 });
