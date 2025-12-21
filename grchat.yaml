@@ -21,8 +21,6 @@ auth:
   # AI-NOTE: All timeouts are given in milliseconds
   nip46_handshake:
     default_timeout: 30000
-    handshake_expiration: 30000
-    polling_interval: 1000 # Handshake completion polling interval
   nip46_pending:
     ttl: 300000 # Pending connection TTL
     cleanup_interval: 60000 # Stale connection cleanup interval

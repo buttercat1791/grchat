@@ -30,8 +30,6 @@ const AuthRelaysConfigSchema = z.object({
 // NIP-46 handshake configuration
 const Nip46HandshakeConfigSchema = z.object({
   default_timeout: z.number().int().positive().default(30000),
-  handshake_expiration: z.number().int().positive().default(30000),
-  polling_interval: z.number().int().positive().default(500),
 });
 
 // NIP-46 pending connection configuration
