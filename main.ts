@@ -12,6 +12,7 @@ import { AppLayout } from "@/shared/layout/App.tsx";
 // Import route registrations
 import { registerAuthRoutes } from "@/features/auth/index.ts";
 import { registerApiRoutes } from "@/features/api/index.ts";
+import { registerChatRoutes } from "@/features/chat/index.ts";
 
 // Initialize configuration and services
 const config = await initializeConfig();
@@ -37,6 +38,7 @@ export const app = new App<State>()
 // Register feature routes
 registerApiRoutes(app);
 registerAuthRoutes(app);
+registerChatRoutes(app);
 
 // Graceful shutdown handlers
 Deno.addSignalListener("SIGINT", () => {
