@@ -5,7 +5,8 @@
     "dev": "GRCHAT_CONFIG='./grchat.dev.yaml' vite",
     "build": "GRCHAT_CONFIG='./grchat.yaml' vite build",
     "start": "deno serve -A _fresh/server.js",
-    "update": "deno run -A -r jsr:@fresh/update ."
+    "update": "deno run -A -r jsr:@fresh/update .",
+    "prerequisites": "./install-noscrypt.sh"
   },
   "lint": { "rules": { "tags": ["fresh", "recommended"] } },
   "exclude": ["**/_fresh/*"],
