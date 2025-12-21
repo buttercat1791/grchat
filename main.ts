@@ -15,7 +15,7 @@ import { registerApiRoutes } from "@/features/api/index.ts";
 import { registerChatRoutes } from "@/features/chat/index.ts";
 
 // Initialize configuration and services
-const config = await initializeConfig();
+const config = await initializeConfig(Deno.env.get("GRCHAT_CONFIG"));
 await AppServices.instance.initialize({
   database: config.database,
   relayPoolConfig: {
