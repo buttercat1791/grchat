@@ -1,6 +1,7 @@
 app:
   name: grchat
   base_url: "http://localhost:5173"
+  version: "0.1.0-alpha.3"
 
 auth:
   relays:
