@@ -10,7 +10,7 @@ export interface QRCodeDisplayProps {
  * Also provides the URL as copyable text
  *
  * AI-NOTE: Uses cuer React component (compatible with Preact via preact/compat)
- * which was specifically developed for use with @paulmillr/qr
+ * which was specifically developed for use with the qr package (npm)
  */
 export function QRCodeDisplay({ url }: QRCodeDisplayProps) {
   const copySuccess = useSignal<boolean>(false);

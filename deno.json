@@ -27,7 +27,7 @@
     "tailwindcss": "npm:tailwindcss@^4.1.18",
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.18",
     "zod": "npm:zod@^4.2.1",
-    "@paulmillr/qr": "jsr:@paulmillr/qr@^0.5.3",
+    "qr": "npm:qr@^0.5.3",
     "cuer": "npm:cuer@^0.0.3"
   },
   "compilerOptions": {
