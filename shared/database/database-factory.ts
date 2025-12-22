@@ -6,13 +6,13 @@
 
 import type { DatabaseService } from "./database-service.ts";
 import {
-  createDenoKvDatabaseService,
-  type DenoKvDatabaseConfig,
-} from "./deno-kv-database-service.ts";
+  createIovalkeyDatabaseService,
+  type IovalkeyDatabaseConfig,
+} from "./iovalkey-database-service.ts";
 
 export interface DatabaseServiceConfig {
-  backend: "deno-kv";
-  denoKv?: DenoKvDatabaseConfig;
+  backend: "valkey";
+  valkey?: IovalkeyDatabaseConfig;
 }
 
 /**
@@ -23,16 +23,10 @@ export interface DatabaseServiceConfig {
  *
  * @example
  * ```ts
- * // Create Valkey backend
+ * // Create valkey backend
  * const db = createDatabaseService({
  *   backend: "valkey",
  *   valkey: { host: "localhost", port: 6379 }
- * });
- *
- * // Create Deno KV backend
- * const db = createDatabaseService({
- *   backend: "deno-kv",
- *   denoKv: { path: "./data/kv.db" }
  * });
  * ```
  */
@@ -40,8 +34,8 @@ export function createDatabaseService(
   config: DatabaseServiceConfig,
 ): DatabaseService {
   switch (config.backend) {
-    case "deno-kv":
-      return createDenoKvDatabaseService(config.denoKv);
+    case "valkey":
+      return createIovalkeyDatabaseService(config.valkey);
     default:
       throw new Error(`Unknown database backend: ${config.backend}`);
   }

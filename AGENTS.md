@@ -110,8 +110,8 @@ Grchat bundles two components:
   - Chat threads consist of
     [NIP-7D](https://github.com/nostr-protocol/nips/blob/master/7D.md) events.
 - [Valkey](https://valkey.io/) provides the application database.
-  - [Valkey GLIDE](https://valkey.io/valkey-glide/) is the Valkey client
-    library.
+  - [iovalkey](https://github.com/valkey-io/iovalkey) (a fork of ioredis) is the
+    Valkey client library.
 - The application server is built atop [Deno](https://docs.deno.com/runtime/).
 - The UI is built on [Fresh](https://fresh.deno.dev/docs/introduction).
   - UI styling uses TailwindCSS with [DaisyUI](https://daisyui.com/llms.txt)

@@ -1,7 +1,7 @@
 app:
   name: grchat
-  base_url: "http://localhost:5173"
-  version: "0.1.0-alpha.3"
+  base_url: "http://localhost:8000"
+  version: "0.1.0-alpha.4"
 
 auth:
   relays:
@@ -35,12 +35,10 @@ auth:
     challenge_ttl: 21600000 # NIP-42 challenge expiration
 
 database:
-  backend: "deno-kv" # Options: "deno-kv"
+  backend: "valkey" # Options: "valkey"
   valkey:
     host: "valkey"
     port: 6379
-  deno_kv:
-    path: null # null = default Deno cache location
 
 ffi:
   noscrypt:
