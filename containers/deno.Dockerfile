@@ -17,10 +17,12 @@ RUN wget https://www.vaughnnugent.com/public/resources/software/builds/noscrypt/
     task install
 
 # --- Deno Runtime Stage ---
-FROM denoland/deno:alpine-2.5.5
+FROM denoland/deno:alpine-2.6.3
+
+ARG GIT_REVISION
+ENV DENO_DEPLOYMENT_ID=${GIT_REVISION}
+
 WORKDIR /app
-EXPOSE 1993
-USER deno
 
 # Copy noscrypt library binaries and headers from noscrypt build stage
 COPY --from=noscrypt /usr/local/lib/libnoscrypt.so /usr/local/lib/libnoscrypt.so
@@ -31,6 +33,10 @@ COPY --from=noscrypt /usr/local/include/noscrypt/platform.h /usr/local/include/n
 
 COPY . .
 RUN deno install
-RUN deno cache main.ts
+RUN deno task build
+RUN deno cache _fresh/server.js
 
-CMD ["run", "--allow-net", "--allow-ffi", "main.ts"]
+USER deno
+EXPOSE 8000
+
+CMD ["serve", "-A", "_fresh/server.js"]

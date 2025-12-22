@@ -28,7 +28,8 @@
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.18",
     "zod": "npm:zod@^4.2.1",
     "qr": "npm:qr@^0.5.3",
-    "cuer": "npm:cuer@^0.0.3"
+    "cuer": "npm:cuer@^0.0.3",
+    "iovalkey": "npm:iovalkey@^0.3.1"
   },
   "compilerOptions": {
     "lib": ["esnext", "dom", "dom.asynciterable", "dom.iterable", "deno.ns"],
@@ -51,6 +52,5 @@
       "template"
     ],
     "types": ["vite/client"]
-  },
-  "unstable": ["kv"]
+  }
 }

@@ -21,7 +21,7 @@ services:
       dockerfile: containers/deno.Dockerfile
     container_name: grchat-deno
     ports:
-      - "1993:1993"
+      - "8000:8000"
     # environment:
     # Configuration can be overridden via environment variables
     # See CONFIG.md for complete list of available variables
