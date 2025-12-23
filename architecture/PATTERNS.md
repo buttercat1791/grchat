@@ -24,6 +24,13 @@ The presentation layer uses
 - Preact components are used to provide "islands" of interactivity.
 - Islands may invoke API routes as _controllers_ for dynamic _views_.
 
+## Server-Sent Events (SSE)
+
+Prefer [_Server-Sent Events_](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) (SSE) when the presentation layer requires live updates.
+
+- Avoid client-driven polling patterns.
+- Avoid use of WebSockets on the client.
+
 ## Vertical Slice Features
 
 Application features are organized as _vertical slices_ of functionality.
