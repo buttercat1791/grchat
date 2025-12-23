@@ -68,6 +68,7 @@ export const SignatureData = z.tuple([
 export const ChatMessage = NostrEventSchema.extend({
   kind: z.literal(11),
 });
+export type ChatMessage = z.infer<typeof ChatMessage>;
 
 /**
  * NIP-7D threaded response (kind 1111).
