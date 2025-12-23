@@ -85,6 +85,13 @@ export class KeepaliveService implements Disposable {
   }
 
   /**
+   * Determines if running in production based on Deno deployment environment.
+   */
+  private isProduction(): boolean {
+    return Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
+  }
+
+  /**
    * Starts the keepalive service.
    *
    * Creates and starts the background worker that manages the ping loop.
@@ -97,12 +104,19 @@ export class KeepaliveService implements Disposable {
     try {
       // Create worker
       // AI-NOTE: In Vite SSR builds, workers aren't bundled. We load from source.
-      // Use file:// URL to absolute path in source directory.
-      // AI-TODO: Use relative path import for dev server, and import.meta.resolve (below) for prod
-      // builds.
-      const workerPath = new URL(
-        import.meta.resolve("@/features/auth/services/keepalive-worker.ts"),
-      ).href;
+      // Worker loading uses environment-aware paths:
+      // - Dev: Relative path for Vite dev server compatibility
+      // - Prod: Absolute path via import.meta.resolve() for bundled builds
+      let workerPath: string;
+      if (this.isProduction()) {
+        // Production: Use import.meta.resolve (works in Docker/Deno Deploy)
+        workerPath = new URL(
+          import.meta.resolve("@/features/auth/services/keepalive-worker.ts"),
+        ).href;
+      } else {
+        // Development: Use relative path for Vite dev server
+        workerPath = new URL("./keepalive-worker.ts", import.meta.url).href;
+      }
       this.worker = new Worker(workerPath, { type: "module" });
 
       // Set up message handler
