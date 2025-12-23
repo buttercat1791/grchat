@@ -1,5 +1,6 @@
 import { useSignal } from "@preact/signals";
-import type { Message } from "@/features/chat/schemas/message-schema.ts";
+import { useEffect } from "preact/hooks";
+import type { UIMessage } from "@/features/chat/schemas/message-schema.ts";
 import MessageList from "@/features/chat/components/MessageList.tsx";
 import ChatInput from "@/features/chat/components/ChatInput.tsx";
 import WelcomeMessage from "@/features/chat/components/WelcomeMessage.tsx";
@@ -11,22 +12,74 @@ export interface ChatInterfaceProps {
 /**
  * Main chat interface island component
  *
- * AI-NOTE: This is an island for interactivity (client-side state management)
- * Messages are stored in Preact signals, reset on page reload
- * No ID field in messages - backend will use Nostr event IDs
+ * Integrates with the backend API to:
+ * - Load messages from the timeline on mount
+ * - Subscribe to SSE stream for real-time updates
+ * - Create messages via API POST requests
  */
 export default function ChatInterface({ userPubkey }: ChatInterfaceProps) {
-  const messages = useSignal<Message[]>([]);
+  const messages = useSignal<UIMessage[]>([]);
 
-  const handleSendMessage = (text: string) => {
-    const newMessage: Message = {
-      text,
-      senderPubkey: userPubkey,
-      timestamp: Date.now(),
-      isOwnMessage: true,
+  // Load messages on mount
+  useEffect(() => {
+    async function loadMessages() {
+      try {
+        const response = await fetch("/api/chat/messages?limit=50");
+        if (response.ok) {
+          const data = await response.json();
+          const uiMessages: UIMessage[] = data._embedded.messages.map(
+            (m: any) => ({
+              event: m.event,
+              isOwnMessage: m.event.pubkey === userPubkey,
+            }),
+          );
+          messages.value = uiMessages;
+        }
+      } catch (error) {
+        console.error("Failed to load messages:", error);
+      }
+    }
+    loadMessages();
+  }, []);
+
+  // Subscribe to SSE stream for real-time updates
+  useEffect(() => {
+    const eventSource = new EventSource("/api/chat/messages/stream");
+
+    eventSource.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      const uiMessage: UIMessage = {
+        event: data.event,
+        isOwnMessage: data.event.pubkey === userPubkey,
+      };
+      messages.value = [...messages.value, uiMessage];
     };
 
-    messages.value = [...messages.value, newMessage];
+    eventSource.onerror = (error) => {
+      console.error("SSE connection error:", error);
+    };
+
+    return () => eventSource.close();
+  }, []);
+
+  // Send message
+  const handleSendMessage = async (text: string) => {
+    try {
+      const response = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to send message");
+      }
+
+      // Message will be added via SSE stream
+    } catch (error) {
+      console.error("Send failed:", error);
+      // AI-TODO: Show error to user via toast notification
+    }
   };
 
   return (

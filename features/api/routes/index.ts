@@ -40,6 +40,16 @@ export function apiIndexHandler(_ctx: Context<State>): Response {
           title: "End user session",
         },
       },
+      chat: {
+        messages: {
+          href: "/api/chat/messages",
+          title: "Chat messages (GET to list, POST to create)",
+        },
+        stream: {
+          href: "/api/chat/messages/stream",
+          title: "SSE stream for real-time messages",
+        },
+      },
     },
   };
 
