@@ -12,7 +12,7 @@ To start the Valkey container, from the project root, run:
 
 ```bash
 docker build -f containers/valkey.Dockerfile -t grchat-valkey .
-docker run -t -i -p 6379:6379 grchat-valkey
+docker run -d -t -i -p 6379:6379 grchat-valkey
 ```
 
 Start the project dev server with:
