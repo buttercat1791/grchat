@@ -68,6 +68,15 @@ export interface DatabaseService extends Disposable {
     options?: SortedSetRangeOptions,
   ): Promise<string[]>;
   sortedSetScore(key: string, member: string): Promise<number | null>;
+  sortedSetCard(key: string): Promise<number>;
+
+  // Pub/Sub Operations (Real-time message delivery)
+  publish(channel: string, message: string): Promise<void>;
+  subscribe(
+    channel: string,
+    callback: (message: string) => void | Promise<void>,
+  ): Promise<void>;
+  unsubscribe(channel: string): Promise<void>;
 
   // Key Operations
   delete(key: string): Promise<boolean>;

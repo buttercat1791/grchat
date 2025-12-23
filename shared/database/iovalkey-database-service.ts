@@ -66,6 +66,13 @@ export class IovalkeyDatabaseService implements DatabaseService {
   }
 
   disconnect(): void {
+    // Disconnect all subscribers first
+    for (const [_channel, subscriber] of this.#subscribers) {
+      subscriber.disconnect();
+    }
+    this.#subscribers.clear();
+
+    // Disconnect main client
     if (this.#client) {
       this.#client.disconnect();
       this.#client = null;
@@ -322,6 +329,75 @@ export class IovalkeyDatabaseService implements DatabaseService {
       return result === null ? null : parseFloat(result);
     } catch (error) {
       throw DatabaseError.operationFailed("sortedSetScore", key, error);
+    }
+  }
+
+  async sortedSetCard(key: string): Promise<number> {
+    this.#ensureConnected("sortedSetCard");
+    try {
+      return await this.#client!.zcard(key);
+    } catch (error) {
+      throw DatabaseError.operationFailed("sortedSetCard", key, error);
+    }
+  }
+
+  // Pub/Sub Operations
+
+  #subscribers: Map<string, Valkey> = new Map();
+
+  async publish(channel: string, message: string): Promise<void> {
+    this.#ensureConnected("publish");
+    try {
+      await this.#client!.publish(channel, message);
+    } catch (error) {
+      throw DatabaseError.operationFailed("publish", channel, error);
+    }
+  }
+
+  async subscribe(
+    channel: string,
+    callback: (message: string) => void | Promise<void>,
+  ): Promise<void> {
+    this.#ensureConnected("subscribe");
+    try {
+      // Create a duplicate client for pub/sub (required by iovalkey)
+      if (!this.#valkeyClass) {
+        throw new Error("Valkey class not initialized");
+      }
+
+      const subscriber = new this.#valkeyClass({
+        host: this.#config.host ?? "127.0.0.1",
+        port: this.#config.port ?? 6379,
+        password: this.#config.password,
+        db: this.#config.db ?? 0,
+        username: this.#config.username,
+      });
+
+      // Set up message handler
+      subscriber.on("message", (_ch: string, msg: string) => {
+        callback(msg);
+      });
+
+      // Subscribe to channel
+      await subscriber.subscribe(channel);
+
+      // Store subscriber for later cleanup
+      this.#subscribers.set(channel, subscriber);
+    } catch (error) {
+      throw DatabaseError.operationFailed("subscribe", channel, error);
+    }
+  }
+
+  async unsubscribe(channel: string): Promise<void> {
+    try {
+      const subscriber = this.#subscribers.get(channel);
+      if (subscriber) {
+        await subscriber.unsubscribe(channel);
+        subscriber.disconnect();
+        this.#subscribers.delete(channel);
+      }
+    } catch (error) {
+      throw DatabaseError.operationFailed("unsubscribe", channel, error);
     }
   }
 
