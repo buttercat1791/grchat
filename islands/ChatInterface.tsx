@@ -4,6 +4,10 @@ import type { UIMessage } from "@/features/chat/schemas/message-schema.ts";
 import MessageList from "@/features/chat/components/MessageList.tsx";
 import ChatInput from "@/features/chat/components/ChatInput.tsx";
 import WelcomeMessage from "@/features/chat/components/WelcomeMessage.tsx";
+import {
+  MessageCollectionResponse,
+  MessageResponse,
+} from "../features/chat/schemas/api-schemas.ts";
 
 export interface ChatInterfaceProps {
   userPubkey: string;
@@ -26,9 +30,9 @@ export default function ChatInterface({ userPubkey }: ChatInterfaceProps) {
       try {
         const response = await fetch("/api/chat/messages?limit=50");
         if (response.ok) {
-          const data = await response.json();
+          const data: MessageCollectionResponse = await response.json();
           const uiMessages: UIMessage[] = data._embedded.messages.map(
-            (m: any) => ({
+            (m: MessageResponse) => ({
               event: m.event,
               isOwnMessage: m.event.pubkey === userPubkey,
             }),
