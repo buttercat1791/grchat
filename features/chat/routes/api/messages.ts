@@ -120,14 +120,14 @@ async function handleGetMessages(ctx: Context<State>): Promise<Response> {
         self: { href: `/api/chat/messages?limit=${limit}&offset=${offset}` },
         prev: offset > 0
           ? {
-            href:
-              `/api/chat/messages?limit=${limit}&offset=${Math.max(0, offset - limit)}`,
+            href: `/api/chat/messages?limit=${limit}&offset=${
+              Math.max(0, offset - limit)
+            }`,
           }
           : undefined,
         next: offset + limit < total
           ? {
-            href:
-              `/api/chat/messages?limit=${limit}&offset=${offset + limit}`,
+            href: `/api/chat/messages?limit=${limit}&offset=${offset + limit}`,
           }
           : undefined,
         create: {

@@ -26,7 +26,9 @@ The presentation layer uses
 
 ## Server-Sent Events (SSE)
 
-Prefer [_Server-Sent Events_](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) (SSE) when the presentation layer requires live updates.
+Prefer
+[_Server-Sent Events_](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+(SSE) when the presentation layer requires live updates.
 
 - Avoid client-driven polling patterns.
 - Avoid use of WebSockets on the client.

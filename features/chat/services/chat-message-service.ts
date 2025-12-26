@@ -11,8 +11,8 @@ import { ChatMessage } from "@/shared/nostr/events-schema.ts";
 import { NostrEventBaseSchema } from "@/shared/nostr/events-schema.ts";
 import { verifyEventSignature } from "@/shared/nostr/crypto.ts";
 import {
-  getTimelineMessages,
   getTimelineMessageCount,
+  getTimelineMessages,
   publishNewMessage,
   storeTimelineMessage,
 } from "@/shared/transactions/chat-messages.ts";
