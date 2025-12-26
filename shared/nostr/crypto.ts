@@ -19,8 +19,8 @@ import {
   NostrEventSchema,
 } from "@/shared/nostr/events-schema.ts";
 import {
-  bytesToUtf8,
   eventToSignatureData,
+  hexToBytes,
   utf8ToBytes,
 } from "@/shared/codecs.ts";
 import { z } from "zod";
@@ -59,7 +59,7 @@ export async function computeEventId(
     const hashArr = new Uint8Array(hashBuf);
 
     // Convert to lowercase hex string
-    const hex = bytesToUtf8.decode(hashArr);
+    const hex = hexToBytes.encode(hashArr);
 
     return NEventIDSchema.parse(hex);
   } catch (error) {
