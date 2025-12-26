@@ -12,7 +12,7 @@ import type { State } from "@/utils.ts";
 import { AppServices } from "@/shared/app-services.ts";
 import { getTimelineMessages } from "@/shared/transactions/chat-messages.ts";
 
-export async function handler(ctx: Context<State>): Promise<Response> {
+export function handler(ctx: Context<State>): Response {
   const userPubkey = ctx.state.auth.userPubkey;
   if (!userPubkey) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
