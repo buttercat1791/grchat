@@ -7,10 +7,10 @@
  * @see ../architecture/SESSIONS.md
  */
 
+import { z } from "zod";
 import type { DatabaseService } from "@/shared/database/database-service.ts";
 import {
   buildSessionState,
-  isSessionValid,
   type SessionState,
   SessionStateSchema,
 } from "@/shared/session-schema.ts";
@@ -30,6 +30,41 @@ export class SessionError extends Error {
     super(message, options);
     this.name = "SessionError";
   }
+}
+
+/**
+ * Session status event schemas for SSE broadcasting
+ */
+
+// Connected event - sent when client first connects
+const SessionConnectedEventSchema = z.object({
+  type: z.literal("connected"),
+});
+export type SessionConnectedEvent = z.infer<
+  typeof SessionConnectedEventSchema
+>;
+
+// Session expired event - sent when session becomes invalid
+const SessionExpiredEventSchema = z.object({
+  type: z.literal("session_expired"),
+  reason: z.string(),
+});
+export type SessionExpiredEvent = z.infer<typeof SessionExpiredEventSchema>;
+
+// Union of all session status events
+const SessionStatusEventSchema = z.discriminatedUnion("type", [
+  SessionConnectedEventSchema,
+  SessionExpiredEventSchema,
+]);
+export type SessionStatusEvent = z.infer<typeof SessionStatusEventSchema>;
+
+/**
+ * SSE client connection for session status notifications
+ */
+interface SessionClient {
+  userPubkey: string;
+  controller: ReadableStreamDefaultController;
+  encoder: TextEncoder;
 }
 
 /**
@@ -73,6 +108,8 @@ export interface SessionValidation {
  */
 export class SessionManager {
   #databaseService: DatabaseService;
+  // Map of userPubkey -> Set of connected SSE clients for session status notifications
+  #clients: Map<string, Set<SessionClient>> = new Map();
 
   constructor(databaseService: DatabaseService) {
     this.#databaseService = databaseService;
@@ -111,7 +148,7 @@ export class SessionManager {
     const csv = sessionModelToCsv.decode(session);
 
     // Store in database with TTL
-    const key = this.buildSessionKey(userPK);
+    const key = this.#buildSessionKey(userPK);
     const success = await this.#databaseService.setStringWithTTL(
       key,
       csv,
@@ -141,7 +178,7 @@ export class SessionManager {
     // Precondition: validate user pubkey argument
     const userPK = NIDSchema.parse(userPubkey);
 
-    const key = this.buildSessionKey(userPK);
+    const key = this.#buildSessionKey(userPK);
     const csv = await this.#databaseService.getString(key);
 
     if (!csv) {
@@ -164,7 +201,7 @@ export class SessionManager {
     // Precondition: validate session argument
     const sess = SessionStateSchema.parse(session);
 
-    const key = this.buildSessionKey(sess.userPubkey);
+    const key = this.#buildSessionKey(sess.userPubkey);
 
     // Get current TTL
     const ttl = await this.#databaseService.ttl(key);
@@ -195,84 +232,11 @@ export class SessionManager {
     // Precondition: validate user pubkey argument
     const userPK = NIDSchema.parse(userPubkey);
 
-    const key = this.buildSessionKey(userPK);
+    const key = this.#buildSessionKey(userPK);
     const success = await this.#databaseService.delete(key);
     if (!success) {
       throw new SessionError("Failed to delete session");
     }
-  }
-
-  /**
-   * Validates a session by user public key. Checks that the session for the given public key
-   * exists, can be parsed, and hasn't expired.
-   *
-   * @param userPubkey - The user's public key
-   * @returns Validation result with session if valid
-   */
-  async validateSession(userPubkey: string): Promise<SessionValidation> {
-    // Precondition: validate user pubkey argument
-    const userPK = NIDSchema.parse(userPubkey);
-
-    const session = await this.getSession(userPK);
-
-    if (!session) {
-      return { valid: false, reason: "not_found" };
-    }
-
-    if (!isSessionValid(session)) {
-      return { valid: false, reason: "expired" };
-    }
-
-    return { valid: true, session };
-  }
-
-  /**
-   * Marks a session's NIP-42 challenge as succeeded.
-   *
-   * @param userPubkey - The user's public key
-   *
-   * @throws {SessionError} If session not found or update fails
-   */
-  async markChallengeSucceeded(userPubkey: string): Promise<void> {
-    // Precondition: validate user pubkey argument
-    const userPK = NIDSchema.parse(userPubkey);
-
-    const session = await this.getSession(userPK);
-    if (!session) {
-      throw new SessionError("Session not found");
-    }
-
-    const updatedSession = SessionStateSchema.parse({
-      ...session,
-      challengeState: "succeeded",
-      challengeIssuedAt: new Date().toISOString(),
-    });
-
-    await this.updateSession(updatedSession);
-  }
-
-  /**
-   * Marks a session's NIP-42 challenge as failed.
-   *
-   * @param userPubkey - The user's public key
-   *
-   * @throws {SessionError} If session not found or update fails
-   */
-  async markChallengeFailed(userPubkey: string): Promise<void> {
-    // Precondition: validate user pubkey argument
-    const userPK = NIDSchema.parse(userPubkey);
-
-    const session = await this.getSession(userPK);
-    if (!session) {
-      throw new SessionError("Session not found");
-    }
-
-    const updatedSession = SessionStateSchema.parse({
-      ...session,
-      challengeState: "failed",
-    });
-
-    await this.updateSession(updatedSession);
   }
 
   /**
@@ -285,7 +249,7 @@ export class SessionManager {
     // Precondition: validate user pubkey argument
     const userPK = NIDSchema.parse(userPubkey);
 
-    const key = this.buildSessionKey(userPK);
+    const key = this.#buildSessionKey(userPK);
     return this.#databaseService.exists(key);
   }
 
@@ -299,16 +263,112 @@ export class SessionManager {
     // Precondition: validate user pubkey argument
     const userPK = NIDSchema.parse(userPubkey);
 
-    const key = this.buildSessionKey(userPK);
+    const key = this.#buildSessionKey(userPK);
     return this.#databaseService.ttl(key);
   }
 
   /**
    * Gets the database key for a session.
    */
-  private buildSessionKey(userPubkey: string): string {
+  #buildSessionKey(userPubkey: string): string {
     // AI-NOTE: userPubkey is already validated by callers
     return `${getAuthConfig().session_manager.valkey_prefix}${userPubkey}`;
+  }
+
+  /**
+   * Registers a new SSE client for session status notifications.
+   *
+   * Supports 1..N user/session relationship. One user may have multiple active sessions on
+   * different clients. All the sessions share the same NIP-46 remote signer connection.
+   *
+   * @param userPubkey - The user's public key
+   * @param controller - The ReadableStream controller for sending events
+   * @returns Cleanup function to call when client disconnects
+   */
+  registerClient(
+    userPubkey: string,
+    controller: ReadableStreamDefaultController,
+  ): () => void {
+    const client: SessionClient = {
+      userPubkey,
+      controller,
+      encoder: new TextEncoder(),
+    };
+
+    // Add client to the set for this user
+    if (!this.#clients.has(userPubkey)) {
+      this.#clients.set(userPubkey, new Set());
+    }
+    this.#clients.get(userPubkey)!.add(client);
+
+    // Send initial connection confirmation
+    this.#sendEvent(client, { type: "connected" });
+
+    // Return cleanup function
+    return () => {
+      const clients = this.#clients.get(userPubkey);
+      if (clients) {
+        clients.delete(client);
+        if (clients.size === 0) {
+          this.#clients.delete(userPubkey);
+        }
+      }
+    };
+  }
+
+  /**
+   * Broadcasts a session expired event to all clients for a user.
+   *
+   * @param userPubkey - The user's public key
+   * @param reason - The reason for session expiry
+   */
+  broadcastSessionExpired(userPubkey: string, reason: string): void {
+    const clients = this.#clients.get(userPubkey);
+    if (!clients || clients.size === 0) {
+      console.debug(
+        `[SessionManager] No connected clients for ${userPubkey}`,
+      );
+      return;
+    }
+
+    console.log(
+      `[SessionManager] Broadcasting session_expired to ${clients.size} client(s) for ${userPubkey}`,
+    );
+
+    const event: SessionStatusEvent = {
+      type: "session_expired",
+      reason,
+    };
+
+    // Send to all connected clients for this user
+    for (const client of clients) {
+      this.#sendEvent(client, event);
+    }
+
+    // Clean up all clients for this user after broadcasting
+    this.#clients.delete(userPubkey);
+  }
+
+  /**
+   * Sends an event to a specific SSE client.
+   *
+   * @param client - The client to send to
+   * @param event - The event data to send (validated against SessionStatusEventSchema)
+   */
+  #sendEvent(client: SessionClient, event: SessionStatusEvent): void {
+    try {
+      // Validate event against schema
+      const validatedEvent = SessionStatusEventSchema.parse(event);
+      const data = JSON.stringify(validatedEvent);
+      client.controller.enqueue(
+        client.encoder.encode(`data: ${data}\n\n`),
+      );
+    } catch (error) {
+      console.error(
+        `[SessionManager] Failed to send event to ${client.userPubkey}:`,
+        error,
+      );
+    }
   }
 }
 

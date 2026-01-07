@@ -261,6 +261,17 @@ export class KeepaliveService implements Disposable {
   }
 
   /**
+   * Gets the NIP-46 connection for a tracked session.
+   *
+   * @param userPubkey - The user's public key
+   * @returns The NIP-46 connection if tracked, null otherwise
+   */
+  getConnection(userPubkey: string): Nip46Connection | null {
+    const session = this.sessions.get(userPubkey);
+    return session?.connection ?? null;
+  }
+
+  /**
    * Handles messages from the worker.
    */
   private async handleWorkerMessage(message: WorkerMessage): Promise<void> {

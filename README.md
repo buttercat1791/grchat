@@ -6,7 +6,8 @@ Simple full-stack Nostr chat app
 
 ### Dev Server
 
-Development requires a local Valkey instance. Use the provided Docker container defined in [valkey.Dockerfile](./containers/valkey.Dockerfile).
+Development requires a local Valkey instance. Use the provided Docker container
+defined in [valkey.Dockerfile](./containers/valkey.Dockerfile).
 
 To start the Valkey container, from the project root, run:
 
@@ -23,7 +24,8 @@ deno task dev
 
 ### Docker Compose
 
-Run the full stack as it would appear in production by using Docker Compose. Run the following from the project root:
+Run the full stack as it would appear in production by using Docker Compose. Run
+the following from the project root:
 
 ```bash
 cd containers && docker compose up -d && cd ..

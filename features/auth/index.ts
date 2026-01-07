@@ -14,6 +14,7 @@ import { finalizeHandler } from "./routes/api/finalize.ts";
 import { logoutHandler } from "./routes/api/logout.ts";
 import { handshakeHandler } from "./routes/api/handshake.ts";
 import { sessionHandler } from "./routes/api/session.ts";
+import { sessionStatusHandler } from "./routes/api/session-status.ts";
 import { loginHandler } from "./routes/login.tsx";
 import { accessDeniedHandler } from "./routes/access-denied.tsx";
 
@@ -29,6 +30,7 @@ export function registerAuthRoutes(app: App<State>): void {
   app.post("/api/auth/logout", logoutHandler);
   app.get("/api/auth/handshake/:connectionId", handshakeHandler);
   app.get("/api/auth/session/:pubkey", sessionHandler);
+  app.get("/api/auth/session/status", sessionStatusHandler);
 }
 
 // Re-export services for external use

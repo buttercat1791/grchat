@@ -22,8 +22,12 @@ await AppServices.instance.initialize({
     connectionTimeout: config.shared.nostr.relay_pool.connection_timeout,
     idleTimeout: config.shared.nostr.relay_pool.idle_timeout,
   },
-  onSessionFailed: (_userPubkey, _reason) => {
-    // AI-NOTE: In production, consider notifying user via WebSocket
+  onSessionFailed: (userPubkey, reason) => {
+    // Broadcast session expiry to all connected clients for this user
+    AppServices.instance.sessionManager.broadcastSessionExpired(
+      userPubkey,
+      reason,
+    );
   },
 });
 

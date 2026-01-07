@@ -167,6 +167,16 @@ export async function accessControlMiddlewareHandler(
     return handleSessionExpired(ctx);
   }
 
+  // For page routes (not API routes), verify active connection via keepalive service
+  if (!isApiRequest(ctx.url.pathname)) {
+    const keepaliveService = AppServices.instance.keepaliveService;
+    const hasActiveConnection = keepaliveService.isTracking(pubkey);
+    if (!hasActiveConnection) {
+      // No active connection found, redirect to login
+      return handleSessionExpired(ctx);
+    }
+  }
+
   // Check user access control
   const accessControl = createUserAccessControl();
   if (!accessControl.isUserAllowed(pubkey)) {

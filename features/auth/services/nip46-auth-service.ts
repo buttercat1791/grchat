@@ -21,6 +21,7 @@ import { RelayPool } from "@/shared/nostr/relay-pool.ts";
 import { signEvent } from "@/shared/nostr/crypto.ts";
 import { getAuthConfig } from "@/features/config/index.ts";
 import { generate } from "@std/uuid/unstable-v7";
+import { delay } from "@std/async/delay";
 
 /**
  * Error thrown when NIP-46 operations fail.
@@ -249,34 +250,6 @@ function getHandshakeEventHandler(
 }
 
 /**
- * Creates a pending request with timeout handling.
- *
- * @param context - The pending request context
- * @returns A promise that resolves when the response is received
- *
- * @throws a Zod error if the context is invalid.
- */
-function createPendingRequest(
-  context: PendingRequestContext,
-): Promise<Nip46Response> {
-  // Precondition: validate context
-  const ctx = PendingRequestContextSchema.parse(context);
-
-  return new Promise<Nip46Response>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      ctx.pendingRequests.delete(ctx.requestId);
-      reject(new Nip46Error(`Request ${ctx.method} timed out`));
-    }, ctx.timeout);
-
-    ctx.pendingRequests.set(ctx.requestId, {
-      resolve,
-      reject,
-      timeout: timeoutId,
-    });
-  });
-}
-
-/**
  * Creates a handler for response events from the remote signer.
  *
  * @param context - The response handler context
@@ -285,36 +258,53 @@ function createPendingRequest(
  * @throws a Zod error if the context is invalid
  */
 function getSignerResponseHandler(
-  context: ResponseHandlerContext,
+  requestId: string,
+  connection: Nip46Connection,
+  resolve: (response: Nip46Response) => void,
+  reject: (reason?: string) => void,
 ): (event: NostrEvent) => void {
-  // Precondition: validate context
-  const ctx = ResponseHandlerContextSchema.parse(context);
-
   return (event: NostrEvent): void => {
-    const ev = NostrEventSchema.parse(event);
+    let ev: NostrEvent;
+    try {
+      ev = NostrEventSchema.parse(event);
+    } catch (err) {
+      reject(`[signerResponseHandler] Failed to parse wrapper event:\n${err}`);
+      return;
+    }
 
     if (ev.kind !== NIP46_KIND) return;
-    if (ev.pubkey !== ctx.connection.signerPubkey) return;
+    if (ev.pubkey !== connection.signerPubkey) return;
 
+    let decrypted: string;
     try {
       using nc = new Noscrypt();
-      const decrypted = nc.decryptNip44(
-        ctx.connection.clientSecretKey,
+      decrypted = nc.decryptNip44(
+        connection.clientSecretKey,
         ev.pubkey,
         ev.content,
       );
-
-      const response = Nip46ResponseSchema.parse(JSON.parse(decrypted));
-
-      const pending = ctx.pendingRequests.get(response.id);
-      if (pending) {
-        clearTimeout(pending.timeout);
-        ctx.pendingRequests.delete(response.id);
-        pending.resolve(response);
-      }
-    } catch {
-      // Ignore decryption failures
+    } catch (err) {
+      reject(
+        `[signerResponseHandler] Failed to decrypt response content:\n${err}`,
+      );
+      return;
     }
+
+    let response: Nip46Response;
+    try {
+      const decryptedObj = JSON.parse(decrypted);
+      response = Nip46ResponseSchema.parse(decryptedObj);
+    } catch (err) {
+      reject(
+        `[signerResponseHandler] Failed to parse response content:\n${err}`,
+      );
+      return;
+    }
+
+    // Ignore response with a non-matching ID.
+    if (response.id !== requestId) return;
+
+    resolve(response);
   };
 }
 
@@ -659,36 +649,67 @@ export class Nip46Service {
       await signEvent(baseEvent, conn.clientSecretKey),
     );
 
-    // Set up pending request
-    const responsePromise = createPendingRequest({
-      requestId: req.id,
-      method: req.method,
-      timeout,
-      pendingRequests: this.#pendingRequests,
-    });
-
-    // Create response handler
-    const handleResponse = getSignerResponseHandler({
-      connection: conn,
-      pendingRequests: this.#pendingRequests,
-    });
-
-    // Subscribe on first relay
-    const subId = await this.#relayPool.subscribe(
-      conn.relayUrls[0],
-      [{ kinds: [NIP46_KIND], "#p": [conn.clientPubkey] }],
-      handleResponse,
+    await Promise.all(
+      conn.relayUrls.map((url) => this.#relayPool.connect(url)),
     );
 
-    try {
-      // Publish the request
-      await this.#relayPool.publish(conn.relayUrls[0], signedEvent);
+    // [relayUrl, subscriptionId]
+    const subscriptions: Array<[string, string]> = [];
 
-      // Wait for response
-      return Nip46ResponseSchema.parse(await responsePromise);
-    } finally {
-      this.#relayPool.unsubscribe(conn.relayUrls[0], subId);
-    }
+    // A cleanup function to invoke when a response is received or the request times out
+    const unsubscribeAll = () =>
+      subscriptions.forEach(([url, subId]) =>
+        this.#relayPool.unsubscribe(url, subId)
+      );
+
+    return await new Promise<Nip46Response>((resolve, reject) => {
+      // Set a timeout for the NIP-46 signer request.
+      delay(timeout, { persistent: false }).then(() => {
+        reject(
+          `[sendRemoteSignerRequest] Request timed out after ${timeout}ms`,
+        );
+      });
+
+      const handleResponse = getSignerResponseHandler(
+        req.id,
+        conn,
+        resolve,
+        reject,
+      );
+
+      // For each relay, set up a subscription to listen for the response, then publish the request.
+      Promise.any(
+        conn.relayUrls.map((url) =>
+          new Promise<void>((onSuccess, onError) => {
+            this.#relayPool.subscribe(
+              url,
+              [{
+                kinds: [NIP46_KIND],
+                "#p": [conn.clientPubkey],
+              }],
+              handleResponse,
+            ).then((subId) => subscriptions.push([url, subId]));
+            this.#relayPool.publish(url, signedEvent).then(
+              ({ success, message }) => {
+                if (!success) {
+                  onError(
+                    `[sendRemoteSignerRequest] Failed to publish signer request to ${url} - relay message: ${message}`,
+                  );
+                  return;
+                }
+                onSuccess();
+              },
+            );
+          })
+        ),
+      ).catch((aggErr: AggregateError) =>
+        reject(
+          `[sendRemoteSignerRequest] Signature request failed: \n\t${
+            aggErr.errors.join("\n\t")
+          }`,
+        )
+      );
+    }).finally(unsubscribeAll);
   }
 
   /**
@@ -733,7 +754,7 @@ export class Nip46Service {
     event: NostrEventBase,
   ): Promise<NostrEvent> {
     const conn = Nip46ConnectionSchema.parse(connection);
-    const ev = NostrEventBaseSchema.parse(event);
+    const ev = NostrEventBaseSchema.omit({ pubkey: true }).parse(event);
 
     const response = await this.sendRemoteSignerRequest(conn, {
       id: crypto.randomUUID(),
