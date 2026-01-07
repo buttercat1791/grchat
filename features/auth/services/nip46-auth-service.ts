@@ -293,7 +293,6 @@ function getSignerResponseHandler(
     let response: Nip46Response;
     try {
       const decryptedObj = JSON.parse(decrypted);
-      console.debug("[signerResponseHandler] Decrypted JSON:", decrypted);
       response = Nip46ResponseSchema.parse(decryptedObj);
     } catch (err) {
       reject(
