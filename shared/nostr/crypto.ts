@@ -35,24 +35,29 @@ export class CryptoError extends Error {
   }
 }
 
+function serializeEvent(event: NostrEventBase): string {
+  const data = eventToSignatureData.decode(event);
+  return JSON.stringify(data);
+}
+
 /**
  * Computes the event ID by serializing the event and hashing the serialized data with SHA-256.
  *
- * @param event - The event for which an ID is to be generated
+ * @param event - The event for which an ID is to be generated, or the serialization of the event
+ * data per NIP-01.
  * @returns The event ID as a 32-byte lowercase hex string
  *
  * @throws {CryptoError} If ID computation fails
  */
 export async function computeEventId(
-  event: NostrEventBase,
+  event: NostrEventBase | string,
 ): Promise<NEventId> {
-  // Precondition: validate event argument
-  const ev = NostrEventBaseSchema.parse(event);
+  const data: string = typeof event !== "string"
+    ? serializeEvent(event)
+    : event;
 
   try {
-    const sigData = eventToSignatureData.decode(ev);
-    const json = JSON.stringify(sigData);
-    const encoded = utf8ToBytes.decode(json);
+    const encoded = utf8ToBytes.decode(data);
 
     // Compute SHA-256 hash
     const hashBuf = await crypto.subtle.digest("SHA-256", encoded);
@@ -83,14 +88,15 @@ export async function signEvent(
   // Preconditions: validate arguments
   const ev = NostrEventBaseSchema.parse(event);
   const secKey = NIDSchema.parse(secretKey);
+  const evData = serializeEvent(ev);
 
   try {
     // Compute the event ID
-    const id = await computeEventId(ev);
+    const id = await computeEventId(evData);
 
     // Sign the event ID with noscrypt
     using noscrypt = new Noscrypt();
-    const sig = noscrypt.signData(secKey, id);
+    const sig = noscrypt.signData(secKey, evData);
 
     // Return the complete signed event
     const signedEvent = NostrEventSchema.parse({
