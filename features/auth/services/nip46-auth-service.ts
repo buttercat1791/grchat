@@ -687,7 +687,6 @@ export class Nip46Service {
               [{
                 kinds: [NIP46_KIND],
                 "#p": [conn.clientPubkey],
-                since: Date.now(),
               }],
               handleResponse,
             ).then((subId) => subscriptions.push([url, subId]));
