@@ -127,16 +127,11 @@ export async function verifyEventSignature(
 ): Promise<boolean> {
   // Precondition: validate event argument
   const ev = NostrEventSchema.parse(event);
+  const evData = serializeEvent(ev);
 
   try {
     // Recompute the event ID
-    const computedId = await computeEventId({
-      pubkey: ev.pubkey,
-      created_at: ev.created_at,
-      kind: ev.kind,
-      tags: ev.tags,
-      content: ev.content,
-    });
+    const computedId = await computeEventId(evData);
 
     // Verify the ID matches
     if (computedId !== ev.id) {
@@ -147,7 +142,7 @@ export async function verifyEventSignature(
     using noscrypt = new Noscrypt();
     return noscrypt.verifyData(
       ev.pubkey,
-      ev.id,
+      evData,
       ev.sig,
     );
   } catch (error) {
