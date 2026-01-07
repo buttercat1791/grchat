@@ -250,34 +250,6 @@ function getHandshakeEventHandler(
 }
 
 /**
- * Creates a pending request with timeout handling.
- *
- * @param context - The pending request context
- * @returns A promise that resolves when the response is received
- *
- * @throws a Zod error if the context is invalid.
- */
-function createPendingRequest(
-  context: PendingRequestContext,
-): Promise<Nip46Response> {
-  // Precondition: validate context
-  const ctx = PendingRequestContextSchema.parse(context);
-
-  return new Promise<Nip46Response>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      ctx.pendingRequests.delete(ctx.requestId);
-      reject(new Nip46Error(`Request ${ctx.method} timed out`));
-    }, ctx.timeout);
-
-    ctx.pendingRequests.set(ctx.requestId, {
-      resolve,
-      reject,
-      timeout: timeoutId,
-    });
-  });
-}
-
-/**
  * Creates a handler for response events from the remote signer.
  *
  * @param context - The response handler context
